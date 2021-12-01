@@ -1,0 +1,4 @@
+#esp32
+build/
+main/build/
+sdkconfig*
