@@ -226,7 +226,7 @@ esp_err_t i2c_master_init(void)
     return i2c_driver_install(i2c_master_port, conf.mode, I2C_MASTER_RX_BUF_DISABLE, I2C_MASTER_TX_BUF_DISABLE, 0);
 }
 
-#define ESP_SLAVE_ADDR 0x7B
+#define ESP_SLAVE_ADDR 0x78
 
 static esp_err_t __attribute__((unused)) i2c_master_read_slave(i2c_port_t i2c_num, uint8_t *data_rd, size_t size)
 {
@@ -250,7 +250,7 @@ static esp_err_t __attribute__((unused)) i2c_master_write_slave(i2c_port_t i2c_n
 {
     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
     i2c_master_start(cmd);
-    i2c_master_write_byte(cmd, (ESP_SLAVE_ADDR << 1) | WRITE_BIT, ACK_CHECK_EN);
+    //i2c_master_write_byte(cmd, (ESP_SLAVE_ADDR << 1) | WRITE_BIT, ACK_CHECK_EN);
     i2c_master_write_byte(cmd, ESP_SLAVE_ADDR, ACK_CHECK_EN);
     i2c_master_write(cmd, data_wr, size, ACK_CHECK_EN);
     i2c_master_stop(cmd);
