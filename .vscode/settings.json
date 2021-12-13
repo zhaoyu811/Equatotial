@@ -1,0 +1,9 @@
+{
+    "files.associations": {
+        "uart.h": "c",
+        "string.h": "c",
+        "bsp.h": "c",
+        "freertos.h": "c",
+        "i2c.h": "c"
+    }
+}

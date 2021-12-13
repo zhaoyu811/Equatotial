@@ -19,7 +19,6 @@ static timer_info_t timer_info_[4];
 
 static bool IRAM_ATTR timer00_group_isr_callback(void *args)
 {
-	static int cnt=0;
     BaseType_t high_task_awoken = pdFALSE;
     timer_info_t *info = (timer_info_t *) args;
 
@@ -167,6 +166,16 @@ void gpios_init(void)
 	gpio_set_level(DEC_EN, 0);
 	gpio_set_level(DEC_STEP, 0);
 	gpio_set_level(DEC_DIR, 0);
+	
+/*
+	ESP_ERROR_CHECK(touch_pad_init());
+	touch_pad_set_voltage(TOUCH_HVOLT_2V7, TOUCH_LVOLT_0V5, TOUCH_HVOLT_ATTEN_1V);
+	touch_pad_config(RIGHT_KEY, 0);
+	touch_pad_config(CANCEL_KEY, 0);
+	touch_pad_config(DOWN_KEY, 0);
+	touch_pad_config(CONFIRM_KEY, 0);
+	touch_pad_filter_start(10);	
+    */
 }
 
 
@@ -192,4 +201,93 @@ void uart_init(void)
     ESP_ERROR_CHECK(uart_driver_install(UART_PORT_NUM, BUF_SIZE * 2, 0, 0, NULL, intr_alloc_flags));
     ESP_ERROR_CHECK(uart_param_config(UART_PORT_NUM, &uart_config));
     ESP_ERROR_CHECK(uart_set_pin(UART_PORT_NUM, UART_TXD, UART_RXD, UART_RTS, UART_CTS));
+}
+
+
+#define I2C_MASTER_TX_BUF_DISABLE 0                           /*!< I2C master doesn't need buffer */
+#define I2C_MASTER_RX_BUF_DISABLE 0                           /*!< I2C master doesn't need buffer */
+
+esp_err_t i2c_master_init(void)
+{
+    int i2c_master_port = 0;
+    i2c_config_t conf = {
+        .mode = I2C_MODE_MASTER,
+        .sda_io_num = 25,
+        .sda_pullup_en = GPIO_PULLUP_ENABLE,
+        .scl_io_num = 26,
+        .scl_pullup_en = GPIO_PULLUP_ENABLE,
+        .master.clk_speed = 10000,
+        // .clk_flags = 0,          /*!< Optional, you can use I2C_SCLK_SRC_FLAG_* flags to choose i2c source clock here. */
+    };
+    esp_err_t err = i2c_param_config(i2c_master_port, &conf);
+    if (err != ESP_OK) {
+        return err;
+    }
+    return i2c_driver_install(i2c_master_port, conf.mode, I2C_MASTER_RX_BUF_DISABLE, I2C_MASTER_TX_BUF_DISABLE, 0);
+}
+
+#define ESP_SLAVE_ADDR 0x7B
+
+static esp_err_t __attribute__((unused)) i2c_master_read_slave(i2c_port_t i2c_num, uint8_t *data_rd, size_t size)
+{
+    if (size == 0) {
+        return ESP_OK;
+    }
+    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+    i2c_master_start(cmd);
+    i2c_master_write_byte(cmd, (ESP_SLAVE_ADDR << 1) | READ_BIT, ACK_CHECK_EN);
+    if (size > 1) {
+        i2c_master_read(cmd, data_rd, size - 1, ACK_VAL);
+    }
+    i2c_master_read_byte(cmd, data_rd + size - 1, NACK_VAL);
+    i2c_master_stop(cmd);
+    esp_err_t ret = i2c_master_cmd_begin(i2c_num, cmd, 1000 / portTICK_RATE_MS);
+    i2c_cmd_link_delete(cmd);
+    return ret;
+}
+
+static esp_err_t __attribute__((unused)) i2c_master_write_slave(i2c_port_t i2c_num, uint8_t *data_wr, size_t size)
+{
+    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+    i2c_master_start(cmd);
+    i2c_master_write_byte(cmd, (ESP_SLAVE_ADDR << 1) | WRITE_BIT, ACK_CHECK_EN);
+    i2c_master_write_byte(cmd, ESP_SLAVE_ADDR, ACK_CHECK_EN);
+    i2c_master_write(cmd, data_wr, size, ACK_CHECK_EN);
+    i2c_master_stop(cmd);
+    esp_err_t ret = i2c_master_cmd_begin(i2c_num, cmd, 1000 / portTICK_RATE_MS);
+    if(ret != ESP_OK)
+        printf("write error %d\n", ret);
+    i2c_cmd_link_delete(cmd);
+    return ret;
+}
+
+void Write_IIC_Command(unsigned char IIC_Command)
+{
+    unsigned char data[2];
+    data[0]=0x00;
+    data[1] = IIC_Command;
+    i2c_master_write_slave(0, data, 2);
+}
+/**********************************************
+// IIC Write Data
+**********************************************/
+void Write_IIC_Data(unsigned char IIC_Data)
+{
+    unsigned char data[2];
+    data[0] = 0x40;
+    data[1] = IIC_Data;
+    i2c_master_write_slave(0, data, 2);
+}
+
+void OLED_WR_Byte(unsigned dat,unsigned cmd)
+{
+	if(cmd)
+			{
+
+   Write_IIC_Data(dat);
+		}
+	else {
+   Write_IIC_Command(dat);
+		
+	}
 }
