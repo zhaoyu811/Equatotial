@@ -1,4 +1,4 @@
-menu "Print Label Configuration"
+menu "Equatotial Configuration"
 
     config UART_PORT_NUM
         int "UART port number"

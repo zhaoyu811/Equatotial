@@ -5,7 +5,6 @@
 #include "driver/gpio.h"
 #include "driver/timer.h"
 #include "driver/touch_pad.h"
-#include "driver/i2c.h"
 
 //串口配置
 #define UART_TXD (CONFIG_UART_TXD)
@@ -23,11 +22,11 @@
 
 #define LED     	15
 #define RA_EN		23
-#define RA_STEP	22
+#define RA_STEP	    22
 #define RA_DIR		21
 #define DEC_EN		2
 #define DEC_STEP	4
-#define DEC_DIR	16
+#define DEC_DIR	    16
 
 #define UP_KEY			//GPIO26
 #define DOWN_KEY	5	//GPIO12 touchpad5
@@ -44,18 +43,6 @@
 //初始化函数
 extern void gpios_init(void);						//初始化GPIO
 extern void uart_init(void);						//初始化串口
-extern esp_err_t i2c_master_init(void);
-extern void Write_IIC_Data(unsigned char IIC_Data);
-extern void OLED_WR_Byte(unsigned dat,unsigned cmd);
 
-#define OLED_CMD  0	//写命令
-#define OLED_DATA 1	//写数据
-
-#define WRITE_BIT I2C_MASTER_WRITE              /*!< I2C master write */
-#define READ_BIT I2C_MASTER_READ                /*!< I2C master read */
-#define ACK_CHECK_EN 0x1                        /*!< I2C master will check ack from slave*/
-#define ACK_CHECK_DIS 0x0                       /*!< I2C master will not check ack from slave */
-#define ACK_VAL 0x0                             /*!< I2C ack value */
-#define NACK_VAL 0x1                            /*!< I2C nack value */
 
 #endif
