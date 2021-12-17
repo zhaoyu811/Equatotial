@@ -38,7 +38,8 @@
 #define X_WIDTH 	128
 #define Y_WIDTH 	64	    						  
 //-----------------OLED IIC端口定义----------------  					   
-extern esp_err_t i2c_master_init(void);                    
+extern esp_err_t i2c_master_init(void);    
+extern esp_err_t __attribute__((unused)) i2c_master_write_slave(i2c_port_t i2c_num, uint8_t *data_wr, size_t size);                
 
 
 //OLED控制用函数

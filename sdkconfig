@@ -126,16 +126,6 @@ CONFIG_PARTITION_TABLE_MD5=y
 # end of Partition Table
 
 #
-# Equatotial Configuration
-#
-CONFIG_UART_PORT_NUM=2
-CONFIG_UART_BAUD_RATE=115200
-CONFIG_UART_RXD=19
-CONFIG_UART_TXD=18
-CONFIG_TASK_STACK_SIZE=2048
-# end of Equatotial Configuration
-
-#
 # Compiler options
 #
 CONFIG_COMPILER_OPTIMIZATION_DEFAULT=y

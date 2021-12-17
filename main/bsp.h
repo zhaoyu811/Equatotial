@@ -7,14 +7,14 @@
 #include "driver/touch_pad.h"
 
 //串口配置
-#define UART_TXD (CONFIG_UART_TXD)
-#define UART_RXD (CONFIG_UART_RXD)
+#define UART_TXD (1)
+#define UART_RXD (1)
 #define UART_RTS (UART_PIN_NO_CHANGE)
 #define UART_CTS (UART_PIN_NO_CHANGE)
 
-#define UART_PORT_NUM      		(CONFIG_UART_PORT_NUM)
-#define UART_BAUD_RATE     		(CONFIG_UART_BAUD_RATE)
-#define UART_TASK_STACK_SIZE    (CONFIG_TASK_STACK_SIZE)
+#define UART_PORT_NUM      		(1)
+#define UART_BAUD_RATE     		(9600)
+#define UART_TASK_STACK_SIZE    (2048)
 
 #define BUF_SIZE (3000)
 

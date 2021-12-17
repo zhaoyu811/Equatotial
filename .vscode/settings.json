@@ -8,6 +8,10 @@
         "oled.h": "c",
         "u8g2.h": "c",
         "oledfont.h": "c",
-        "stdlib.h": "c"
+        "stdlib.h": "c",
+        "array": "c",
+        "string_view": "c",
+        "initializer_list": "c",
+        "utility": "c"
     }
 }
