@@ -5,6 +5,9 @@
         "bsp.h": "c",
         "freertos.h": "c",
         "i2c.h": "c",
-        "oled.h": "c"
+        "oled.h": "c",
+        "u8g2.h": "c",
+        "oledfont.h": "c",
+        "stdlib.h": "c"
     }
 }

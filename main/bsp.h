@@ -28,9 +28,9 @@
 #define DEC_STEP	4
 #define DEC_DIR	    16
 
-#define UP_KEY			//GPIO26
+#define UP_KEY		8	//GPIO26
 #define DOWN_KEY	5	//GPIO12 touchpad5
-#define LEFT_KEY		//GPIO25
+#define LEFT_KEY	9	//GPIO25
 #define RIGHT_KEY	7	//GPIO27 touchpad7
 #define CONFIRM_KEY	4	//GPIO13 touchpad4
 #define CANCEL_KEY	6	//GPIO14 touchpad6
