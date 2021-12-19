@@ -33,63 +33,129 @@
 //[5]0 1 2 3 ... 127	
 //[6]0 1 2 3 ... 127	
 //[7]0 1 2 3 ... 127 		
-	   
-#define I2C_MASTER_TX_BUF_DISABLE 0                           /*!< I2C master doesn't need buffer */
-#define I2C_MASTER_RX_BUF_DISABLE 0                           /*!< I2C master doesn't need buffer */
-#define WRITE_BIT I2C_MASTER_WRITE              /*!< I2C master write */
-#define READ_BIT I2C_MASTER_READ                /*!< I2C master read */
-#define ACK_CHECK_EN 0x1                        /*!< I2C master will check ack from slave*/
-#define ACK_CHECK_DIS 0x0                       /*!< I2C master will not check ack from slave */
-#define ACK_VAL 0x0                             /*!< I2C ack value */
-#define NACK_VAL 0x1                            /*!< I2C nack value */
-
-#define OLED_CMD  0	//写命令
-#define OLED_DATA 1	//写数据
-
+ 
 esp_err_t i2c_master_init(void)
 {
-    int i2c_master_port = 0;
     i2c_config_t conf = {
         .mode = I2C_MODE_MASTER,
-        .sda_io_num = 25,
+        .sda_io_num = SDA_IO_NUM,
         .sda_pullup_en = GPIO_PULLUP_ENABLE,
-        .scl_io_num = 26,
+        .scl_io_num = SCL_IO_NUM,
         .scl_pullup_en = GPIO_PULLUP_ENABLE,
-        .master.clk_speed = 1000000,
-        // .clk_flags = 0,          /*!< Optional, you can use I2C_SCLK_SRC_FLAG_* flags to choose i2c source clock here. */
+        .master.clk_speed = SCL_SPEED,
     };
-    esp_err_t err = i2c_param_config(i2c_master_port, &conf);
+    esp_err_t err = i2c_param_config(I2C_MASTER_PORT, &conf);
     if (err != ESP_OK) {
         return err;
     }
-    return i2c_driver_install(i2c_master_port, conf.mode, I2C_MASTER_RX_BUF_DISABLE, I2C_MASTER_TX_BUF_DISABLE, 0);
+    return i2c_driver_install(I2C_MASTER_PORT, conf.mode, I2C_MASTER_RX_BUF_DISABLE, I2C_MASTER_TX_BUF_DISABLE, 0);
 }
 
-#define ESP_SLAVE_ADDR 0x78
-
-static esp_err_t __attribute__((unused)) i2c_master_read_slave(i2c_port_t i2c_num, uint8_t *data_rd, size_t size)
+uint8_t u8x8_gpio_and_delay_esp32(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr)
 {
-    if (size == 0) {
-        return ESP_OK;
+    switch(msg)
+    {
+        case U8X8_MSG_DELAY_NANO:               // delay arg_int * 1 nano second  1s = 1000000000ns
+            __asm__ volatile("nop");
+            break;
+
+        case U8X8_MSG_DELAY_100NANO:            // delay arg_int * 100 nano seconds
+            __asm__ volatile("nop");
+            break;
+
+        case U8X8_MSG_DELAY_10MICRO:            // delay arg_int * 10 micro seconds 1s = 1000000us
+            for (uint16_t n = 0; n < 320; n++)
+            {
+                __asm__ volatile("nop");
+            }
+        break;
+
+        case U8X8_MSG_DELAY_MILLI:              // delay arg_int * 1 milli second
+            vTaskDelay(arg_int);
+            break;
+
+        case U8X8_MSG_GPIO_AND_DELAY_INIT:  
+            // Function which implements a delay, arg_int contains the amount of ms  
+            // set menu pin mode
+            //rt_pin_mode(u8x8->pins[U8X8_PIN_MENU_HOME],PIN_MODE_INPUT_PULLUP);
+            //rt_pin_mode(u8x8->pins[U8X8_PIN_MENU_SELECT],PIN_MODE_INPUT_PULLUP);
+            //rt_pin_mode(u8x8->pins[U8X8_PIN_MENU_PREV],PIN_MODE_INPUT_PULLUP);
+            //rt_pin_mode(u8x8->pins[U8X8_PIN_MENU_NEXT],PIN_MODE_INPUT_PULLUP);
+            //rt_pin_mode(u8x8->pins[U8X8_PIN_MENU_UP],PIN_MODE_INPUT_PULLUP);
+            //rt_pin_mode(u8x8->pins[U8X8_PIN_MENU_DOWN],PIN_MODE_INPUT_PULLUP);
+
+            break;
+
+        case U8X8_MSG_DELAY_I2C:
+            // arg_int is the I2C speed in 100KHz, e.g. 4 = 400 KHz
+            // arg_int=1: delay by 5us, arg_int = 4: delay by 1.25us
+            for (uint16_t n = 0; n < (arg_int<=2?160:40); n++)
+            {
+                __asm__ volatile("nop");
+            }
+            break;
+        default:
+                break;
     }
-    i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-    i2c_master_start(cmd);
-    i2c_master_write_byte(cmd, (ESP_SLAVE_ADDR << 1) | READ_BIT, ACK_CHECK_EN);
-    if (size > 1) {
-        i2c_master_read(cmd, data_rd, size - 1, ACK_VAL);
+    return 0;
+}
+
+uint8_t u8x8_byte_esp32_hw_i2c(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr)
+{
+    /* u8g2/u8x8 will never send more than 32 bytes between START_TRANSFER and END_TRANSFER */
+    uint8_t *data;
+    static i2c_cmd_handle_t cmd = 0;
+    static uint8_t ctrordata = 0;
+    static int start = 0;
+    switch(msg)
+    {
+        case U8X8_MSG_BYTE_SEND:
+            data = (uint8_t *)arg_ptr;
+            if(start == 1)  //第一个数据决定是否是数据还是命令
+            {
+                start = 0;
+                ctrordata = data[0];
+                break;
+            }
+            for(int i=0; i<arg_int; i++)
+            {
+                cmd = i2c_cmd_link_create();
+                i2c_master_start(cmd);
+                i2c_master_write_byte(cmd, 0x78, ACK_CHECK_EN);
+                i2c_master_write_byte(cmd, ctrordata, ACK_CHECK_EN);
+                i2c_master_write_byte(cmd, data[i], ACK_CHECK_EN);
+                i2c_master_stop(cmd);
+                esp_err_t ret = i2c_master_cmd_begin(0, cmd, 1000 / portTICK_RATE_MS);
+                if(ret != ESP_OK)
+                	printf("write error %d\n", ret);
+                i2c_cmd_link_delete(cmd);
+            }
+            break;
+
+        case U8X8_MSG_BYTE_INIT:
+            break;
+
+        case U8X8_MSG_BYTE_SET_DC:
+            break;
+
+        case U8X8_MSG_BYTE_START_TRANSFER:
+            start = 1;
+            break;
+
+        case U8X8_MSG_BYTE_END_TRANSFER:
+            start = 0;
+            break;
+
+        default:
+            break;
     }
-    i2c_master_read_byte(cmd, data_rd + size - 1, NACK_VAL);
-    i2c_master_stop(cmd);
-    esp_err_t ret = i2c_master_cmd_begin(i2c_num, cmd, 1000 / portTICK_RATE_MS);
-    i2c_cmd_link_delete(cmd);
-    return ret;
+    return 0;
 }
 
 esp_err_t __attribute__((unused)) i2c_master_write_slave(i2c_port_t i2c_num, uint8_t *data_wr, size_t size)
 {
     i2c_cmd_handle_t cmd = i2c_cmd_link_create();
     i2c_master_start(cmd);
-    //i2c_master_write_byte(cmd, (ESP_SLAVE_ADDR << 1) | WRITE_BIT, ACK_CHECK_EN);
     i2c_master_write_byte(cmd, ESP_SLAVE_ADDR, ACK_CHECK_EN);
     i2c_master_write(cmd, data_wr, size, ACK_CHECK_EN);
     i2c_master_stop(cmd);
@@ -282,11 +348,11 @@ void OLED_ShowCHinese(u8 x,u8 y,u8 no)
 /***********功能描述：显示显示BMP图片128×64起始点坐标(x,y),x的范围0～127，y为页的范围0～7*****************/
 void OLED_DrawBMP(unsigned char x0, unsigned char y0,unsigned char x1, unsigned char y1,unsigned char BMP[])
 { 	
- unsigned int j=0;
- unsigned char x,y;
-  
-  if(y1%8==0) y=y1/8;      
-  else y=y1/8+1;
+	unsigned int j=0;
+	unsigned char x,y;
+
+	if(y1%8==0) y=y1/8;      
+	else y=y1/8+1;
 	for(y=y0;y<y1;y++)
 	{
 		OLED_Set_Pos(x0,y);

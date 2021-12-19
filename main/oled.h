@@ -24,10 +24,27 @@
 
 #include "stdlib.h"	
 #include "driver/i2c.h"
+#include "freertos/task.h"
+#include "csrc/u8g2.h"
 
+//esp32 IIC
+#define I2C_MASTER_TX_BUF_DISABLE 0             /*!< I2C master doesn't need buffer */
+#define I2C_MASTER_RX_BUF_DISABLE 0             /*!< I2C master doesn't need buffer */
+#define ACK_CHECK_EN    0x1                     /*!< I2C master will check ack from slave*/
+#define ACK_CHECK_DIS   0x0                     /*!< I2C master will not check ack from slave */
+#define I2C_MASTER_PORT 0
+#define SDA_IO_NUM      25
+#define SCL_IO_NUM	    26
+#define SCL_SPEED       1000000						   
+extern esp_err_t i2c_master_init(void);         //初始化IIC           
+//u8g2
+extern uint8_t u8x8_gpio_and_delay_esp32(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr);
+extern uint8_t u8x8_byte_esp32_hw_i2c(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr);
+
+//中景园电子OLED驱动
+#define ESP_SLAVE_ADDR 0x78
 #define u8 unsigned char 
 #define u32 unsigned int
-
 #define OLED_MODE   0
 #define SIZE        8
 #define XLevelL		0x00
@@ -36,12 +53,10 @@
 #define Max_Row		64
 #define	Brightness	0xFF 
 #define X_WIDTH 	128
-#define Y_WIDTH 	64	    						  
-//-----------------OLED IIC端口定义----------------  					   
-extern esp_err_t i2c_master_init(void);    
-extern esp_err_t __attribute__((unused)) i2c_master_write_slave(i2c_port_t i2c_num, uint8_t *data_wr, size_t size);                
+#define Y_WIDTH 	64	 
 
-
+#define OLED_CMD  0	//写命令
+#define OLED_DATA 1	//写数据
 //OLED控制用函数
 void OLED_WR_Byte(unsigned dat,unsigned cmd);  
 void OLED_Display_On(void);
