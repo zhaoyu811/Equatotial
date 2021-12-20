@@ -16,7 +16,9 @@
         "bmp.h": "c",
         "sdkconfig.h": "c",
         "task.h": "c",
-        "touch_pad.h": "c"
+        "touch_pad.h": "c",
+        "functional": "c",
+        "socket.h": "c"
     },
     "C_Cpp.errorSquiggles": "Disabled"
 }

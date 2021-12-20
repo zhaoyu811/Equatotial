@@ -6,6 +6,12 @@
 #include "bsp.h"
 #include "oled.h"
 #include "csrc/u8g2.h"
+#include "esp_wifi.h"
+#include "esp_log.h"
+#include "esp_event.h"
+#include "nvs_flash.h"
+#include <sys/socket.h>
+
 
 u8g2_t u8g2;
 
@@ -195,11 +201,102 @@ static void menu_touchpad_task(void *arg)
 		vTaskDelay(10 / portTICK_PERIOD_MS);
     }
 }
-#include "esp_wifi.h"
-#include "esp_system.h"
-#include "esp_event.h"
-#include "esp_event_loop.h"
-#include "nvs_flash.h"
+
+static const char *TAG = "scan";
+esp_err_t create_tcp_server()
+{
+	ESP_LOGI(TAG, "server socket....,port=%d\n", 6000);
+	int server_socket = socket(AF_INET, SOCK_STREAM, 0);
+
+	if (server_socket < 0)
+	{
+		printf("create_server failed:%d\n", server_socket);
+		return ESP_FAIL;
+	}
+	struct sockaddr_in server_addr;
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_port = htons(6000);//指定的端口号
+	server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+
+
+	//开始创建
+	if (bind(server_socket, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0)
+	{
+		printf("bind_server failed：%d\n", server_socket);
+		close(server_socket);
+		return ESP_FAIL;
+	}
+
+    //监听指定的端口
+    if (listen(server_socket, 5) < 0)
+    {
+        printf("listen_server:%d\n", server_socket);
+        close(server_socket);
+        return ESP_FAIL;
+    }
+
+	struct sockaddr_in client_addr;
+	socklen_t socklen;
+    int connect_socket = accept(server_socket, (struct sockaddr *)&client_addr, &socklen);
+    //判断是否连接成功
+    if (connect_socket < 0)
+    {
+        printf("accept_server:%d\n", connect_socket);
+        close(server_socket);
+        return ESP_FAIL;
+    }
+
+    /*connection established，now can send/recv*/
+    ESP_LOGI(TAG, "tcp connection established!");
+    return ESP_OK;
+}
+
+static void event_handler(void* arg, esp_event_base_t event_base,
+                                int32_t event_id, void* event_data)
+{
+    if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
+        esp_wifi_connect();
+    } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
+        esp_wifi_connect();
+    } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
+        ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
+        ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
+		create_tcp_server();
+    }
+}
+
+/* Initialize Wi-Fi as sta and set scan method */
+static void fast_scan(void)
+{
+    ESP_ERROR_CHECK(esp_netif_init());
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
+
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler, NULL, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler, NULL, NULL));
+
+    // Initialize default station as network interface instance (esp-netif)
+    esp_netif_t *sta_netif = esp_netif_create_default_wifi_sta();
+    assert(sta_netif);
+
+    // Initialize and start WiFi
+    wifi_config_t wifi_config = {
+        .sta = {
+            .ssid = "mi10",
+            .password = "1234567890",
+            .scan_method = WIFI_FAST_SCAN,
+            .sort_method = WIFI_CONNECT_AP_BY_SIGNAL,
+            .threshold.rssi = -127,
+            .threshold.authmode = WIFI_AUTH_OPEN,
+        },
+    };
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
+    ESP_ERROR_CHECK(esp_wifi_start());
+}
+
 void app_main(void)
 {
 	dec_ra_axis_gpios_init();	//初始化dec ra轴的控制gpio
@@ -216,21 +313,11 @@ void app_main(void)
 	xTaskCreate(menu_touchpad_task, "menu_touchpad_task", 2048, NULL, 3, NULL);
 
 
-	nvs_flash_init();
-    tcpip_adapter_init();
-    ESP_ERROR_CHECK( esp_event_loop_init(event_handler, NULL) );
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK( esp_wifi_init(&cfg) );
-    ESP_ERROR_CHECK( esp_wifi_set_storage(WIFI_STORAGE_RAM) );
-    ESP_ERROR_CHECK( esp_wifi_set_mode(WIFI_MODE_STA) );
-    wifi_config_t sta_config = {
-        .sta = {
-            .ssid = "mi10",
-            .password = "1234567890",
-            .bssid_set = false
-        }
-    };
-    ESP_ERROR_CHECK( esp_wifi_set_config(WIFI_IF_STA, &sta_config) );
-    ESP_ERROR_CHECK( esp_wifi_start() );
-    ESP_ERROR_CHECK( esp_wifi_connect() );
+	esp_err_t ret = nvs_flash_init();
+	if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ret = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK( ret );
+	fast_scan();
 }
