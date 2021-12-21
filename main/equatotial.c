@@ -48,14 +48,22 @@ static void u8g2_ssd1306_12864_hw_i2c_init(void)
     //u8g2_DrawGlyph(&u8g2, 112, 56, 0x2603 );
     //u8g2_SendBuffer(&u8g2);
 }
-
+char vol_string[40];
+char touchpad_string[24];
+char databuff[200];
 static void oled_task(void *pvParameter)
 {
 	vTaskDelay(200/portTICK_RATE_MS);
     u8g2_ssd1306_12864_hw_i2c_init();
 	while(1)
 	{
-		vTaskDelay(5000/portTICK_RATE_MS);
+		u8g2_ClearBuffer(&u8g2);
+		u8g2_SetFont(&u8g2, u8g2_font_ncenB08_tr);
+		u8g2_DrawStr(&u8g2, 1, 10, vol_string);
+		u8g2_DrawStr(&u8g2, 1, 20, touchpad_string);
+		u8g2_DrawStr(&u8g2, 1, 30, databuff);
+		u8g2_SendBuffer(&u8g2);
+		//vTaskDelay(50/portTICK_RATE_MS);
 	}
 }
 
@@ -154,6 +162,7 @@ static void power_input_adc_task(void *arg)
     print_char_val_type(val_type);
 
 	vTaskDelay(2000/portTICK_RATE_MS);
+	int sum = 0;
 	while (1) 
 	{	
         uint32_t adc_reading = 0;
@@ -165,25 +174,16 @@ static void power_input_adc_task(void *arg)
         adc_reading /= NO_OF_SAMPLES;
         //Convert adc_reading to voltage in mV
         uint32_t voltage = esp_adc_cal_raw_to_voltage(adc_reading, adc_chars);
-		char raw_string[20];
-		char vol_string[20];
-        sprintf(raw_string, "Raw: %d", adc_reading);
-		sprintf(vol_string, "Vol: %dmV", voltage);
+		sprintf(vol_string, "%dVol:%4dmV,Raw:%4d", sum++, voltage, adc_reading);
 
 		//显示
-		u8g2_ClearBuffer(&u8g2);
-		u8g2_SetFont(&u8g2, u8g2_font_ncenB08_tr);
-		u8g2_DrawStr(&u8g2, 1, 10, raw_string);
-		u8g2_DrawStr(&u8g2, 1, 20, vol_string);
-		u8g2_SendBuffer(&u8g2);
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        vTaskDelay(pdMS_TO_TICKS(30));
     }
 }
 
 static void menu_touchpad_task(void *arg)
 {
 	touch_pad_intr_enable();
-	char touchpad_string[24];
     while (1) 
 	{
 		for (int i = 4; i <= 9; i++) 
@@ -192,8 +192,7 @@ static void menu_touchpad_task(void *arg)
 			{
 				sprintf(touchpad_string, "T%d activated!", i);
 				// Wait a while for the pad being released
-				u8g2_DrawStr(&u8g2, 3, 30, touchpad_string);
-				vTaskDelay(200 / portTICK_PERIOD_MS);
+				vTaskDelay(100 / portTICK_PERIOD_MS);
 				// Clear information on pad activation
 				s_pad_activated[i] = false;
 			}
@@ -201,8 +200,27 @@ static void menu_touchpad_task(void *arg)
 		vTaskDelay(10 / portTICK_PERIOD_MS);
     }
 }
-
 static const char *TAG = "scan";
+int connect_socket = 0;
+static void server_recv_data(void *pvParameters)
+{
+	int len = 0;	//长度 char databuff[1024]; //缓存 while (1)
+	while(1)
+	{
+		//清空缓存
+		//读取接收数据
+		len = recv(connect_socket, databuff, sizeof(databuff), 0); 
+		if (len > 0)
+		{
+			//memset(databuff[len], 0x00, sizeof(databuff)-len);
+			databuff[len] = '\0';
+			ESP_LOGI(TAG, "recvData: %s", databuff);
+			send(connect_socket, databuff, strlen(databuff), 0);
+		}
+		vTaskDelay(100/portTICK_RATE_MS);
+	}
+}
+
 esp_err_t create_tcp_server()
 {
 	ESP_LOGI(TAG, "server socket....,port=%d\n", 6000);
@@ -237,7 +255,7 @@ esp_err_t create_tcp_server()
 
 	struct sockaddr_in client_addr;
 	socklen_t socklen;
-    int connect_socket = accept(server_socket, (struct sockaddr *)&client_addr, &socklen);
+    connect_socket = accept(server_socket, (struct sockaddr *)&client_addr, &socklen);
     //判断是否连接成功
     if (connect_socket < 0)
     {
@@ -248,6 +266,7 @@ esp_err_t create_tcp_server()
 
     /*connection established，now can send/recv*/
     ESP_LOGI(TAG, "tcp connection established!");
+	xTaskCreate(server_recv_data, "server_recv_data", 2048, NULL, 8, NULL);
     return ESP_OK;
 }
 
