@@ -51,6 +51,9 @@ static void u8g2_ssd1306_12864_hw_i2c_init(void)
 char vol_string[40];
 char touchpad_string[24];
 char databuff[200];
+char ra_position_string[30];
+char dec_position_string[30];
+char ip_string[30];
 static void oled_task(void *pvParameter)
 {
 	vTaskDelay(200/portTICK_RATE_MS);
@@ -62,6 +65,9 @@ static void oled_task(void *pvParameter)
 		u8g2_DrawStr(&u8g2, 1, 10, vol_string);
 		u8g2_DrawStr(&u8g2, 1, 20, touchpad_string);
 		u8g2_DrawStr(&u8g2, 1, 30, databuff);
+		u8g2_DrawStr(&u8g2, 1, 40, ra_position_string);		//22:04:45#
+		u8g2_DrawStr(&u8g2, 1, 50, dec_position_string);	//09*11'55#	
+		u8g2_DrawStr(&u8g2, 1, 60, ip_string);
 		u8g2_SendBuffer(&u8g2);
 		//vTaskDelay(50/portTICK_RATE_MS);
 	}
@@ -86,7 +92,7 @@ static void dec_uart_task(void *arg)
 		{0x05, 0x00, 0x71, 0xEB}, 
 		{0x05, 0x00, 0x72, 0xA5}
 	};
-
+#if 0
 	vTaskDelay(10000/portTICK_RATE_MS);
 
 	for(int i=0; i<14; i++)
@@ -99,7 +105,7 @@ static void dec_uart_task(void *arg)
 		}
 		printf("\n");
 	}
-
+#endif
 	while(1)
 	{
 		//int len = uart_read_bytes(DEC_UART_PORT_NUM, data, BUF_SIZE, 20 / portTICK_RATE_MS);
@@ -128,7 +134,7 @@ static void ra_uart_task(void *arg)
 		{0x05, 0x00, 0x71, 0xEB}, 
 		{0x05, 0x00, 0x72, 0xA5}
 	};
-
+#if 0
 	for(int i=0; i<14; i++)
 	{
 		uart_write_bytes(RA_UART_PORT_NUM, (const char *)dat[i], 4);
@@ -139,7 +145,7 @@ static void ra_uart_task(void *arg)
 		}
 		printf("\n");
 	}
-
+#endif
 	while(1)
 	{
 		//int len = uart_read_bytes(RA_UART_PORT_NUM, data, BUF_SIZE, 20 / portTICK_RATE_MS);
@@ -162,7 +168,6 @@ static void power_input_adc_task(void *arg)
     print_char_val_type(val_type);
 
 	vTaskDelay(2000/portTICK_RATE_MS);
-	int sum = 0;
 	while (1) 
 	{	
         uint32_t adc_reading = 0;
@@ -174,7 +179,7 @@ static void power_input_adc_task(void *arg)
         adc_reading /= NO_OF_SAMPLES;
         //Convert adc_reading to voltage in mV
         uint32_t voltage = esp_adc_cal_raw_to_voltage(adc_reading, adc_chars);
-		sprintf(vol_string, "%dVol:%4dmV,Raw:%4d", sum++, voltage, adc_reading);
+		sprintf(vol_string, "Vol:%4dmV,Raw:%4d", voltage, adc_reading);
 
 		//显示
         vTaskDelay(pdMS_TO_TICKS(30));
@@ -214,8 +219,23 @@ static void server_recv_data(void *pvParameters)
 		{
 			//memset(databuff[len], 0x00, sizeof(databuff)-len);
 			databuff[len] = '\0';
-			ESP_LOGI(TAG, "recvData: %s", databuff);
-			send(connect_socket, databuff, strlen(databuff), 0);
+			if(databuff[0]==0x06)
+			{
+				ESP_LOGI(TAG, "recvData: %s", databuff);
+				send(connect_socket, "A", 1, 0);
+			}
+
+			if(strcmp(databuff, ":GR#")==0)
+			{
+				ESP_LOGI(TAG, "recvData: %s", databuff);
+				send(connect_socket, ra_position_string, strlen(ra_position_string), 0);
+			}
+
+			if(strcmp(databuff, ":GD#")==0)
+			{
+				ESP_LOGI(TAG, "recvData: %s", databuff);
+				send(connect_socket, dec_position_string, strlen(dec_position_string), 0);
+			}
 		}
 		vTaskDelay(100/portTICK_RATE_MS);
 	}
@@ -280,6 +300,7 @@ static void event_handler(void* arg, esp_event_base_t event_base,
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
         ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
+		sprintf(ip_string, IPSTR, IP2STR(&event->ip_info.ip));
 		create_tcp_server();
     }
 }
@@ -316,6 +337,24 @@ static void fast_scan(void)
     ESP_ERROR_CHECK(esp_wifi_start());
 }
 
+static void ra_dec_update_position(void *arg)
+{
+	double ra_arcsec = 0;
+	double dec_arcsec = 0;
+	while(1)
+	{
+		//ra格式  22:04:45# 赤精时间
+		//dec格式 09*11'55#
+
+		//1个脉冲对应 4.05角秒 解析出字符串
+		ra_arcsec = ra_position * 0.405;		//角度
+		dec_arcsec = dec_position * 0.405;	//角度
+		sprintf(ra_position_string, "%02d:%02d:%02d#", (int)ra_arcsec/3600%24, (int)ra_arcsec/60%60, (int)ra_arcsec%60);
+		sprintf(dec_position_string, "%02d*%02d'%02d#", (int)dec_arcsec/3600%90, (int)dec_arcsec/60%60, (int)dec_arcsec%60);
+		vTaskDelay(10/portTICK_RATE_MS);
+	}
+}
+
 void app_main(void)
 {
 	dec_ra_axis_gpios_init();	//初始化dec ra轴的控制gpio
@@ -324,12 +363,14 @@ void app_main(void)
 	i2c_master_init();			//初始化oled i2c通信
 	power_input_adc_init();		//初始化电源采集adc
 	menu_touchpad_init();		//初始化按键
+	ra_dec_timer_init();	//初始化ra dec的定时器
 	xTaskCreate(led_task, "led_task", 2048, NULL, 20, NULL);
 	xTaskCreate(oled_task, "oled_task", 4096, NULL, 15, NULL);
 	xTaskCreate(dec_uart_task, "dec_uart_task", 2048, NULL, 1, NULL);
 	xTaskCreate(ra_uart_task, "ra_uart_task", 2048, NULL, 2, NULL);
 	xTaskCreate(power_input_adc_task, "power_input_adc_task", 2048, NULL, 25, NULL);
 	xTaskCreate(menu_touchpad_task, "menu_touchpad_task", 2048, NULL, 3, NULL);
+	xTaskCreate(ra_dec_update_position, "ra_dec_update_position", 2048, NULL, 10, NULL);
 
 
 	esp_err_t ret = nvs_flash_init();

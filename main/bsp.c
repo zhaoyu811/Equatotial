@@ -16,6 +16,7 @@ typedef struct {
 
 static timer_info_t timer_info_[4];
 
+int dec_position = 0;
 static bool IRAM_ATTR timer00_group_isr_callback(void *args)
 {
     BaseType_t high_task_awoken = pdFALSE;
@@ -29,11 +30,15 @@ static bool IRAM_ATTR timer00_group_isr_callback(void *args)
         timer_group_set_alarm_value_in_isr(info->timer_group, info->timer_idx, timer_counter_value);
     }
 
-
+    dec_position ++;
+    if(dec_position % 2 == 0)
+        gpio_set_level(DEC_STEP, 1);
+    else
+        gpio_set_level(DEC_STEP, 0);
 
     return high_task_awoken == pdTRUE; // return whether we need to yield at the end of ISR
 }
-
+int ra_position = 0;
 static bool IRAM_ATTR timer01_group_isr_callback(void *args)
 {
     BaseType_t high_task_awoken = pdFALSE;
@@ -48,44 +53,11 @@ static bool IRAM_ATTR timer01_group_isr_callback(void *args)
     }
     /* Now just send the event data back to the main program task */
     
-    
-    return high_task_awoken == pdTRUE; // return whether we need to yield at the end of ISR
-}
-
-static bool IRAM_ATTR timer10_group_isr_callback(void *args)
-{
-    BaseType_t high_task_awoken = pdFALSE;
-    timer_info_t *info = (timer_info_t *) args;
-
-    uint64_t timer_counter_value = timer_group_get_counter_value_in_isr(info->timer_group, info->timer_idx);
-
-    if (!info->auto_reload) 
-	{
-        timer_counter_value += info->alarm_interval * TIMER_SCALE;
-        timer_group_set_alarm_value_in_isr(info->timer_group, info->timer_idx, timer_counter_value);
-    }
-
-    /* Now just send the event data back to the main program task */
-    
-
-    return high_task_awoken == pdTRUE; // return whether we need to yield at the end of ISR
-}
-
-static bool IRAM_ATTR timer11_group_isr_callback(void *args)
-{
-    BaseType_t high_task_awoken = pdFALSE;
-    timer_info_t *info = (timer_info_t *) args;
-
-    uint64_t timer_counter_value = timer_group_get_counter_value_in_isr(info->timer_group, info->timer_idx);
-
-    if (!info->auto_reload) 
-	{
-        timer_counter_value += info->alarm_interval * TIMER_SCALE;
-        timer_group_set_alarm_value_in_isr(info->timer_group, info->timer_idx, timer_counter_value);
-    }
-
-    /* Now just send the event data back to the main program task */
-
+    ra_position++;
+    if(ra_position % 2 == 0)
+        gpio_set_level(RA_STEP, 1);
+    else
+        gpio_set_level(RA_STEP, 0);
 
     return high_task_awoken == pdTRUE; // return whether we need to yield at the end of ISR
 }
@@ -136,7 +108,14 @@ static void tg_timer_init(int group, int timer, bool auto_reload, int timer_inte
     timer_isr_callback_add(group, timer, isr_handler, timer_info, 0);
 }
 
-//tg_timer_init(TIMER_GROUP_1, TIMER_0, true, 1, timer10_group_isr_callback);// 1 1 1
+void ra_dec_timer_init()
+{
+    tg_timer_init(TIMER_GROUP_0, TIMER_0, true, 1, timer00_group_isr_callback);
+    timer_start(0, 0);
+    tg_timer_init(TIMER_GROUP_0, TIMER_1, true, 1, timer01_group_isr_callback);
+    timer_start(0, 1);
+}
+
 void print_char_val_type(esp_adc_cal_value_t val_type)
 {
     if (val_type == ESP_ADC_CAL_VAL_EFUSE_TP) {

@@ -36,9 +36,12 @@ extern void power_input_adc_init(void);
 #define DEC_STEP	4
 #define DEC_DIR	    16
 //初始化函数
+extern int ra_position;
+extern int dec_position;
 extern void dec_ra_axis_gpios_init(void);		//初始化GPIO
 extern void dec_tmc2208_uart_init(void);        //初始化dec轴串口
 extern void ra_tmc2208_uart_init(void);         //初始化ra轴串口
+extern void ra_dec_timer_init(void);
 
 //触控按键
 #define UP_KEY		8	//GPIO26 touchpad8
