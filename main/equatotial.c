@@ -347,11 +347,14 @@ static void ra_dec_update_position(void *arg)
 		//dec格式 09*11'55#
 
 		//1个脉冲对应 4.05角秒 解析出字符串
-		ra_arcsec = ra_position * 0.405;		//角度
-		dec_arcsec = dec_position * 0.405;	//角度
-		sprintf(ra_position_string, "%02d:%02d:%02d#", (int)ra_arcsec/3600%24, (int)ra_arcsec/60%60, (int)ra_arcsec%60);
-		sprintf(dec_position_string, "%02d*%02d'%02d#", (int)dec_arcsec/3600%90, (int)dec_arcsec/60%60, (int)dec_arcsec%60);
-		vTaskDelay(10/portTICK_RATE_MS);
+		ra_arcsec = ra_position * 4.05;		//角度
+		dec_arcsec = dec_position * 4.05;		//角度
+		dec_arcsec = 45*3600;
+		sprintf(ra_position_string, "%02d:%02d:%02d#", (int)(ra_arcsec/15/3600)%24, (int)(ra_arcsec/15/60)%60, (int)(ra_arcsec/15)%60);
+		sprintf(dec_position_string, "%02d*%02d'%02d#", (int)(dec_arcsec/3600)%90, (int)(dec_arcsec/60)%60, (int)(dec_arcsec)%60);
+		vTaskDelay(100/portTICK_RATE_MS);
+
+		//printf("ra_position = %d, ra_arcsec = %f, %02d:%02d:%02d#\n", ra_position, ra_arcsec, (int)(ra_arcsec/15/3600)%24, (int)(ra_arcsec/60)%60, (int)(ra_arcsec)%60);
 	}
 }
 

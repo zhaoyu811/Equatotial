@@ -58,6 +58,9 @@ extern void menu_touchpad_init(void);
 
 //定时器配置
 #define TIMER_DIVIDER         (16)  							// Hardware timer clock divider
+//./components/soc/esp32/include/soc/soc.h:224:#define  APB_CLK_FREQ    ( 80*1000000 )       //unit: Hz
+//#define TIMER_BASE_CLK   (APB_CLK_FREQ)  /*!< Frequency of the clock on the input of the timer groups */
+//TIMER_SCALE = 80*1000000/16=5000000  5MHZ
 #define TIMER_SCALE           (TIMER_BASE_CLK / TIMER_DIVIDER)  // convert counter value to seconds
 
 #endif
