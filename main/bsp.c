@@ -62,7 +62,7 @@ static bool IRAM_ATTR timer01_group_isr_callback(void *args)
     return high_task_awoken == pdTRUE; // return whether we need to yield at the end of ISR
 }
 
-static void tg_timer_init(int group, int timer, bool auto_reload, int timer_interval_msec, timer_isr_t isr_handler)
+static void tg_timer_init(int group, int timer, bool auto_reload, double timer_interval_msec, timer_isr_t isr_handler)
 {
     /* Select and initialize basic parameters of the timer */
 	timer_deinit(group, timer);
@@ -110,9 +110,9 @@ static void tg_timer_init(int group, int timer, bool auto_reload, int timer_inte
 
 void ra_dec_timer_init()
 {
-    tg_timer_init(TIMER_GROUP_0, TIMER_0, true, 270, timer00_group_isr_callback);
+    tg_timer_init(TIMER_GROUP_0, TIMER_0, true, 269.2625, timer00_group_isr_callback);   //269.2625毫秒
     timer_start(0, 0);
-    tg_timer_init(TIMER_GROUP_0, TIMER_1, true, 270, timer01_group_isr_callback);
+    tg_timer_init(TIMER_GROUP_0, TIMER_1, true, 269.2625, timer01_group_isr_callback);
     timer_start(0, 1);
 }
 

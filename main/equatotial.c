@@ -217,27 +217,91 @@ static void server_recv_data(void *pvParameters)
 		len = recv(connect_socket, databuff, sizeof(databuff), 0); 
 		if (len > 0)
 		{
-			//memset(databuff[len], 0x00, sizeof(databuff)-len);
 			databuff[len] = '\0';
+			//ESP_LOGI(TAG, "recvData: %s", databuff);
 			if(databuff[0]==0x06)
 			{
-				ESP_LOGI(TAG, "recvData: %s", databuff);
 				send(connect_socket, "A", 1, 0);
 			}
-
-			if(strcmp(databuff, ":GR#")==0)
+			else if(strcmp(databuff, ":GVD#")==0)
 			{
-				ESP_LOGI(TAG, "recvData: %s", databuff);
+				send(connect_socket, "dec 26 2021#", strlen("dec 26 2021#"), 0);
+			}
+			else if(strcmp(databuff, ":GVP#")==0)
+			{
+				send(connect_socket, "my telescope#", strlen("my telescope#"), 0);
+			}
+			else if(strcmp(databuff, ":GVN#")==0)
+			{
+				send(connect_socket, "00.0#", strlen("00.0#"), 0);
+			}
+			else if(strcmp(databuff, ":GVT#")==0)
+			{
+				send(connect_socket, "12:12:12#", strlen("12:12:12#"), 0);
+			}
+			else if(strcmp(databuff, ":Gg#")==0)
+			{
+				send(connect_socket, "+179*59#", strlen("+179*59#"), 0);
+			}
+			else if(strcmp(databuff,":D#")==0)
+			{
+				send(connect_socket, "i dont't known#", strlen("i dont't known#"), 0);
+			}
+			else if(strcmp(databuff, ":GR#")==0)
+			{
 				send(connect_socket, ra_position_string, strlen(ra_position_string), 0);
 			}
-
-			if(strcmp(databuff, ":GD#")==0)
+			else if(strcmp(databuff, ":GD#")==0)
 			{
-				ESP_LOGI(TAG, "recvData: %s", databuff);
 				send(connect_socket, dec_position_string, strlen(dec_position_string), 0);
 			}
+			else if(strcmp(databuff, ":GW#")==0)
+			{
+				send(connect_socket, "AT1#", strlen("AT0"), 0);
+			}
+			else if(strncmp(databuff, ":SG", 3)==0)
+			{
+				send(connect_socket, "1", strlen("1"), 0);
+			}
+			else if(strncmp(databuff, ":St", 3)==0)
+			{
+				send(connect_socket, "1", strlen("1"), 0);
+			}
+			else if(strncmp(databuff, ":Sg", 3)==0)
+			{
+				send(connect_socket, "1", strlen("1"), 0);
+			}
+			else if(strncmp(databuff, ":SL", 3)==0)
+			{
+				send(connect_socket, "1", strlen("1"), 0);
+			}
+			else if(strcmp(databuff, ":GC#")==0)
+			{
+				send(connect_socket, "12/12/12#", strlen("12/12/12#"), 0);
+			}
+			else if(strncmp(databuff, ":SC", 3)==0)
+			{
+				send(connect_socket, "1Updating Planetary Data# ", strlen("1Updating Planetary Data# "), 0);
+			}
+			else if(strcmp(databuff, ":Gt#")==0)
+			{
+				send(connect_socket, "+50*59#", strlen("+50*59#"), 0);
+			}
+			else if(strcmp(databuff, ":GL#")==0)
+			{
+				send(connect_socket, "12:12:12#", strlen("12:12:12#"), 0);
+			}
+			else if(strcmp(databuff, ":GG#")==0)
+			{
+				send(connect_socket, "+08#", strlen("+08#"), 0);
+			}
+			//else if(strncmp(databuff, ""))
+			else
+			{
+				ESP_LOGI(TAG, "recvData: %s", databuff);
+			}
 		}
-		vTaskDelay(100/portTICK_RATE_MS);
+		vTaskDelay(50/portTICK_RATE_MS);
 	}
 }
 
