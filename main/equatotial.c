@@ -210,6 +210,8 @@ int connect_socket = 0;
 static void server_recv_data(void *pvParameters)
 {
 	int len = 0;	//长度 char databuff[1024]; //缓存 while (1)
+	char timestr[20];
+	strcpy(timestr, "22:16:20#");
 	while(1)
 	{
 		//清空缓存
@@ -219,9 +221,10 @@ static void server_recv_data(void *pvParameters)
 		{
 			databuff[len] = '\0';
 			//ESP_LOGI(TAG, "recvData: %s", databuff);
+			
 			if(databuff[0]==0x06)
 			{
-				send(connect_socket, "A", 1, 0);
+				send(connect_socket, "P", 1, 0);
 			}
 			else if(strcmp(databuff, ":GVD#")==0)
 			{
@@ -241,7 +244,7 @@ static void server_recv_data(void *pvParameters)
 			}
 			else if(strcmp(databuff, ":Gg#")==0)
 			{
-				send(connect_socket, "+179*59#", strlen("+179*59#"), 0);
+				send(connect_socket, "+247*28#", strlen("+247*28#"), 0);
 			}
 			else if(strcmp(databuff,":D#")==0)
 			{
@@ -257,7 +260,7 @@ static void server_recv_data(void *pvParameters)
 			}
 			else if(strcmp(databuff, ":GW#")==0)
 			{
-				send(connect_socket, "AT1#", strlen("AT0"), 0);
+				send(connect_socket, "GT1#", strlen("GT1#"), 0);
 			}
 			else if(strncmp(databuff, ":SG", 3)==0)
 			{
@@ -273,29 +276,49 @@ static void server_recv_data(void *pvParameters)
 			}
 			else if(strncmp(databuff, ":SL", 3)==0)
 			{
+				strcpy(timestr, databuff+3);
 				send(connect_socket, "1", strlen("1"), 0);
 			}
 			else if(strcmp(databuff, ":GC#")==0)
 			{
-				send(connect_socket, "12/12/12#", strlen("12/12/12#"), 0);
+				send(connect_socket, "12/17/21#", strlen("12/17/21#"), 0);
 			}
 			else if(strncmp(databuff, ":SC", 3)==0)
 			{
-				send(connect_socket, "1Updating Planetary Data# ", strlen("1Updating Planetary Data# "), 0);
+				send(connect_socket, "1Updating Planetary Data#", strlen("1Updating Planetary Data#"), 0);
 			}
 			else if(strcmp(databuff, ":Gt#")==0)
 			{
-				send(connect_socket, "+50*59#", strlen("+50*59#"), 0);
+				send(connect_socket, "+37*50#", strlen("+37*50#"), 0);
 			}
 			else if(strcmp(databuff, ":GL#")==0)
 			{
-				send(connect_socket, "12:12:12#", strlen("12:12:12#"), 0);
+				printf("%s\n", timestr);
+				timestr[7]=timestr[7]+2;
+				timestr[0] = '1';
+				timestr[1] = '4';
+				send(connect_socket, timestr, strlen(timestr), 0);
 			}
 			else if(strcmp(databuff, ":GG#")==0)
 			{
-				send(connect_socket, "+08#", strlen("+08#"), 0);
+				send(connect_socket, "-08.0#", strlen("-08.0#"), 0);
 			}
-			//else if(strncmp(databuff, ""))
+			else if(strncmp(databuff, ":Sr", 3)==0)
+			{
+				send(connect_socket, "1", strlen("1"), 0);
+			}
+			else if(strncmp(databuff, ":Sd", 3)==0)
+			{
+				send(connect_socket, "1", strlen("1"), 0);
+			}
+			else if(strcmp(databuff, ":MS#")==0)
+			{
+				send(connect_socket, "0", strlen("0"), 0);
+			}
+			else if(strcmp(databuff, ":CM#")==0)
+			{
+				send(connect_socket, "sync world!#", strlen("sync world!#"), 0);
+			}
 			else
 			{
 				ESP_LOGI(TAG, "recvData: %s", databuff);
@@ -414,6 +437,8 @@ static void ra_dec_update_position(void *arg)
 		ra_arcsec = ra_position * 4.05;		//角度
 		dec_arcsec = dec_position * 4.05;		//角度
 		dec_arcsec = 45*3600;
+		ra_arcsec = 10000 * 4.05;		//角度
+
 		sprintf(ra_position_string, "%02d:%02d:%02d#", (int)(ra_arcsec/15/3600)%24, (int)(ra_arcsec/15/60)%60, (int)(ra_arcsec/15)%60);
 		sprintf(dec_position_string, "%02d*%02d'%02d#", (int)(dec_arcsec/3600)%90, (int)(dec_arcsec/60)%60, (int)(dec_arcsec)%60);
 		vTaskDelay(100/portTICK_RATE_MS);
