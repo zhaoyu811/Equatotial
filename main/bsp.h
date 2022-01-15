@@ -28,20 +28,10 @@ extern void power_input_adc_init(void);
 #define RA_UART_PORT_NUM    2
 #define RA_TXD              18
 #define RA_RXD              19
-//引脚配置
-#define RA_EN		23
-#define RA_STEP	    22
-#define RA_DIR		21
-#define DEC_EN		2
-#define DEC_STEP	4
-#define DEC_DIR	    16
+
 //初始化函数
-extern int ra_position;
-extern int dec_position;
-extern void dec_ra_axis_gpios_init(void);		//初始化GPIO
 extern void dec_tmc2208_uart_init(void);        //初始化dec轴串口
 extern void ra_tmc2208_uart_init(void);         //初始化ra轴串口
-extern void ra_dec_timer_init(void);
 
 //触控按键
 #define UP_KEY		8	//GPIO26 touchpad8
@@ -55,12 +45,5 @@ extern void ra_dec_timer_init(void);
 extern bool s_pad_activated[9];
 extern uint32_t s_pad_init_val[9];
 extern void menu_touchpad_init(void);
-
-//定时器配置
-#define TIMER_DIVIDER         (8)  							// Hardware timer clock divider
-//./components/soc/esp32/include/soc/soc.h:224:#define  APB_CLK_FREQ    ( 80*1000000 )       //unit: Hz
-//#define TIMER_BASE_CLK   (APB_CLK_FREQ)  /*!< Frequency of the clock on the input of the timer groups */
-//TIMER_SCALE = 80*1000000/16=5000000  5MHZ
-#define TIMER_SCALE           (TIMER_BASE_CLK / TIMER_DIVIDER)  // convert counter value to seconds
 
 #endif

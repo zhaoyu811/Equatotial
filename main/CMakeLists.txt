@@ -43,8 +43,9 @@ set(srcs
 	"csrc/u8x8_u8toa.c"
 	"equatotial.c" 
 	"bsp.c" 
-	"oled.c")
+	"oled.c"
+	"motor.c")
 
-idf_component_register(SRCS "${srcs}"
+idf_component_register(SRCS "wifi.c" "coordinate.c" "${srcs}"
                     INCLUDE_DIRS "." "./")
 
