@@ -44,6 +44,12 @@
         "esp_newlib.h": "c",
         "reent.h": "c",
         "timer.h": "c",
-        "*.ipp": "c"
-    }
+        "*.ipp": "c",
+        "functional": "c",
+        "motor.h": "c",
+        "wifi.h": "c",
+        "coordinate.h": "c",
+        "esp_ota_ops.h": "c"
+    },
+    "idf.adapterTargetName": "esp32"
 }

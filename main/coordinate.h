@@ -1,14 +1,15 @@
 #ifndef __COORDINATE_H
 #define __COORDINATE_H
 
-//:SCMM/DD/YY#
-//Change Handbox Date to MM/DD/YY
+//时间相关函数
 void setCurrentDateByString(char *str);//设置当前日期
 void setCurrentTimeByString(char *str); //设置当前时间
+void setCurrentSiteTimeZone(char *str);          //设置当前时区
 char * getCurrentDateString();
 char * getCurrentTimeString();
-void setCurrentSiteTimeZone(char *str);          //设置当前时区
+char * getCurrentSiteTimeZone();
 
+//地理位置相关函数
 void setCurrentSiteLongitudeByString(char * longitudeString);
 void setCurrentSiteLatitudeByString(char * latitudeString);
 void setCurrentSiteLongitudeByValue(double longitudeValue);
@@ -17,6 +18,16 @@ char * getCurrentSiteLongitudeString();
 char * getCurrentSiteLatitudeString();
 double getCurrentSiteLongitudeValue();
 double getCurrentSiteLatitudeValue();
+
+//目标天体位置相关函数
+void setTargetCelestialBodyRaByString(char *str);
+void setTargetCelestialBodyDecByString(char *str);
+void setTargetCelestialBodyRaByValue(double sec);
+void setTargetCelestialBodyDecByValue(double asec);
+char * getTargetCelestialBodyRaString(void);
+char * getTargetCelestialBodyDecString(void);
+double getTargetCelestialBodyRaValue(void);
+double getTargetCelestialBodyDecValue(void);
 
 //  实现坐标系间的转换
 //  RA/Dec:HH:MM:SS.S sDD*MM'SS.S  RA/Dec坐标系

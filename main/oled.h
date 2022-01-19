@@ -36,7 +36,7 @@
 #define SDA_IO_NUM      25
 #define SCL_IO_NUM	    26
 #define SCL_SPEED       1000000						   
-extern esp_err_t i2c_master_init(void);         //初始化IIC           
+extern esp_err_t i2cMasterInit(void);         //初始化IIC           
 //u8g2
 extern uint8_t u8x8_gpio_and_delay_esp32(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr);
 extern uint8_t u8x8_byte_esp32_hw_i2c(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr);

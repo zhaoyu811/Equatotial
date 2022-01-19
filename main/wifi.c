@@ -82,6 +82,10 @@ static void execCmd(void)
     while(!isEmpty())
     {
         popCmd(cmdTmpBuff);
+
+        if((strncmp(cmdTmpBuff, "GD", 2)!=0)&&(strncmp(cmdTmpBuff, "GR", 2)!=0)&&(strncmp(cmdTmpBuff, "D", 1)!=0)&&(strncmp(cmdTmpBuff, "GW", 2)!=0))
+            printf("current exec cmd:%s\n", cmdTmpBuff);
+
         if(strncmp(cmdTmpBuff, "GVD", 3)==0)        //Get Telescope Firmware Date
         {
             const esp_app_desc_t *app_desc = esp_ota_get_app_description();
@@ -116,17 +120,33 @@ static void execCmd(void)
             sprintf(sendBuff, "%s#", decString);
             send(connectSocket, sendBuff, strlen(sendBuff), 0);
         }
-        else if(strncmp(cmdTmpBuff, "D", 1)==0)
+        else if(strncmp(cmdTmpBuff, "D", 1)==0)     //-------------------------------------------------?????
         {
             send(connectSocket, "i don't know!#", strlen("i don't know!#"), 0);
         }
+        else if(strncmp(cmdTmpBuff, "GW", 2)==0)    //-------------------------------------------------????? 校准及跟踪详情
+        {
+            send(connectSocket, "GT1", strlen("GT0"), 0);
+        }
         else if(strncmp(cmdTmpBuff, "Gg", 2)==0)    //得到当前位置经度
         {
-
+            sprintf(sendBuff, "%s#", getCurrentSiteLongitudeString());
+            send(connectSocket, sendBuff, strlen(sendBuff), 0);
         }
         else if(strncmp(cmdTmpBuff, "Sg", 2)==0)    //设置当前位置经度
         {
-
+            setCurrentSiteLongitudeByString(cmdTmpBuff+2);  //经度以0°自西向东递增到360°
+            send(connectSocket, "1", strlen("1"), 0);
+        }
+        else if(strncmp(cmdTmpBuff, "Gt", 2)==0)    //得到当前位置纬度
+        {
+            sprintf(sendBuff, "%s#", getCurrentSiteLatitudeString());
+            send(connectSocket, sendBuff, strlen(sendBuff), 0);
+        }
+        else if(strncmp(cmdTmpBuff, "St", 2)==0)    //设置当前位置纬度
+        {
+            setCurrentSiteLatitudeByString(cmdTmpBuff+2);   //纬度从北极到南极 +90°到-90°
+            send(connectSocket, "1", strlen("1"), 0);
         }
         else if(strncmp(cmdTmpBuff, "GC", 2)==0)    //得到当前日期
         {
@@ -150,14 +170,96 @@ static void execCmd(void)
         }
         else if(strncmp(cmdTmpBuff, "GG", 2) == 0)  //得到当前时区
         {
-            send(connectSocket, "-8.0#", strlen("-8.0#"), 0);
+            sprintf(sendBuff, "%s#", getCurrentSiteTimeZone());
+            send(connectSocket, sendBuff, strlen(sendBuff), 0);
         }
         else if(strncmp(cmdTmpBuff, "SG", 2) == 0)  //设置当前时区
         {
             setCurrentSiteTimeZone(cmdTmpBuff+2);
             send(connectSocket, "1", strlen("1"), 0);
         }
+        else if(strncmp(cmdTmpBuff, "Sr", 2) == 0)  //设置目标赤经值
+        {
+            setTargetCelestialBodyRaByString(cmdTmpBuff+2);
+            send(connectSocket, "1", strlen("1"), 0);
+        }
+        else if(strncmp(cmdTmpBuff, "Sd", 2) == 0)  //设置目标赤纬值
+        {
+            setTargetCelestialBodyDecByString(cmdTmpBuff+2);
+            send(connectSocket, "1", strlen("1"), 0);
+        }
+        else if(strncmp(cmdTmpBuff, "MS", 2) == 0)  //指向目标 0 Slew is Possible 1<string># Object Below Horizon w/string message 2<string># Object Below Higher w/string message
+        {
+            //计算 目标天体 是否可以到达
+            //????????????????????????????????
 
+
+            send(connectSocket, "0", strlen("0"), 0);
+        }
+        else if(strncmp(cmdTmpBuff, "CM", 2) == 0)
+        {
+            //追踪目标天体
+            //?????????????????????????????????
+            startSyncTarget();
+            send(connectSocket, "sync target!#", strlen("sync target!#"), 0);
+        }
+        else if(strncmp(cmdTmpBuff, "RG", 2)==0)    //设置速度为  Guiding Rate (slowest)    return nothing
+        {
+
+        }
+        else if(strncmp(cmdTmpBuff, "RC", 2)==0)    //设置速度为  Centering rate (2nd slowest)  return nothing
+        {
+
+        }
+        else if(strncmp(cmdTmpBuff, "RM", 2)==0)    //设置速度为  Find Rate (2nd Fastest)   return nothing
+        {
+
+        }
+        else if(strncmp(cmdTmpBuff, "RS", 2)==0)    //设置速度为  max (fastest)     return nothing
+        {
+
+        }
+        else if(strncmp(cmdTmpBuff, "Ms", 2)==0)    //向南移动  Move Telescope South    return nothing
+        {
+            raMotorTvMove(0, 0, 0, CCW);
+        }
+        else if(strncmp(cmdTmpBuff, "Qs", 2)==0)    //停止向南移动  return nothing
+        {
+            raMotorStop();
+        }
+        else if(strncmp(cmdTmpBuff, "Mn", 2)==0)    //向北移动  return nothing
+        {
+            raMotorTvMove(0, 0, 0, CW);
+        }
+        else if(strncmp(cmdTmpBuff, "Qn", 2)==0)    //停止向北移动  return nothing
+        {
+            raMotorStop();
+        }
+        else if(strncmp(cmdTmpBuff, "Mw", 2)==0)    //向西移动  return nothing
+        {
+            decMotorTvMove(0, 0, 0, CCW);
+        }
+        else if(strncmp(cmdTmpBuff, "Qw", 2)==0)    //停止向西移动  return nothing
+        {
+            decMotorStop();
+        }
+        else if(strncmp(cmdTmpBuff, "Me", 2)==0)    //向东移动  return nothing
+        {
+            decMotorTvMove(0, 0, 0, CW);
+        }
+        else if(strncmp(cmdTmpBuff, "Qe", 2)==0)    //停止向东移动  return nothing
+        {
+            decMotorStop();
+        }
+        else if(strncmp(cmdTmpBuff, "Q", 1) == 0)   //注意Qe Qs Qn Qw
+        {
+            //停止一切运动
+            stopSyncTarget(); //return nothing
+        }
+        else 
+        {
+            printf("unknown cmd:%s\n", cmdTmpBuff);
+        }
     }
 }
 

@@ -34,7 +34,7 @@
 //[6]0 1 2 3 ... 127	
 //[7]0 1 2 3 ... 127 		
  
-esp_err_t i2c_master_init(void)
+esp_err_t i2cMasterInit(void)
 {
     i2c_config_t conf = {
         .mode = I2C_MODE_MASTER,
