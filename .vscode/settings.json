@@ -49,7 +49,11 @@
         "motor.h": "c",
         "wifi.h": "c",
         "coordinate.h": "c",
-        "esp_ota_ops.h": "c"
+        "esp_ota_ops.h": "c",
+        "sstream": "c",
+        "cmath": "c",
+        "complex": "c"
     },
-    "idf.adapterTargetName": "esp32"
+    "idf.adapterTargetName": "esp32",
+    "idf.port": "/dev/ttyUSB0"
 }

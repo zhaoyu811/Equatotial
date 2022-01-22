@@ -35,22 +35,82 @@ void raDecAxisGpiosInit(void)
 	gpio_set_level(DEC_DIR, 0);
 }
 
-motorRunPara raMotorRunPara, decMotorRunPara;
+volatile speedRampData raSRD, decSRD;
 
-int raTargetPulse = 0;              //ra  赤经轴目标位置    0~(320000-1)
-int decTargetPulse = 0;             //dec 赤纬轴目标位置    0~(320000-1)
-
-int raPulseCount = 0;               //ra  赤经轴的位置  0-(320000-1)
-int decPulseCount = 0;              //dec 赤纬轴的位置  0~(320000-1)
-static int raInterruptCount = 0;    //ra  赤经轴的定时器中断计数，用于 STEP 引脚翻转电平  0~(640000-1)
-static int decInterruptCount = 0;   //dec 赤纬轴的定时器中断计数，用于 STEP 引脚翻转电平  0~(640000-1)
-uint64_t counterValue;
+static volatile int raPulseCount = 0;        //ra  赤经轴的位置  0-(320000-1)
+static volatile int decPulseCount = 0;       //dec 赤纬轴的位置  0~(320000-1)
+static volatile int raInterruptCount = 0;    //ra  赤经轴的定时器中断计数，用于 STEP 引脚翻转电平  0~(640000-1)
+static volatile int decInterruptCount = 0;   //dec 赤纬轴的定时器中断计数，用于 STEP 引脚翻转电平  0~(640000-1)
 //定时器组 0  定时器 0 中断服务函数    定时翻转赤经轴电机STEP引脚电平
+
+static void raTimerRun(void)
+{
+    //保存新(下)一个延时周期
+    volatile int new_step_delay = 0;
+    static int rest = 0;
+
+    raSRD.step_count++;
+    //判断电机现在所处状态
+    if(raSRD.run_state == ACCEL)
+    {
+        raSRD.accel_count++;// 加速计数值加1
+        ////计算新(下)一步脉冲周期(时间间隔)
+        new_step_delay = raSRD.step_delay - (((2 *raSRD.step_delay) + rest)/(4 * raSRD.accel_count + 1));
+        // 计算余数，下次计算补上余数，减少误差
+        rest = ((2 * raSRD.step_delay)+rest)%(4 * raSRD.accel_count + 1);
+        
+        if(raSRD.step_count >= raSRD.decel_start)  //大于必须减速的步数
+        {
+            raSRD.step_delay = new_step_delay;
+            rest = 0;
+            raSRD.run_state = DECEL;
+        }
+        else
+        {
+            if(new_step_delay < raSRD.min_delay)   //判断是否
+            {
+                raSRD.step_delay = raSRD.min_delay;
+                raSRD.run_state = RUN;
+            }
+            else
+            {
+                raSRD.step_delay = new_step_delay;
+                raSRD.run_state = ACCEL;
+            }
+        }
+        timer_set_alarm_value(TIMER_GROUP_0, TIMER_0, raSRD.step_delay);
+    }
+    else if(raSRD.run_state == RUN)
+    {
+        //判断是否到了该减速的位置
+        if(raSRD.step_count>=raSRD.decel_start) 
+            raSRD.run_state = DECEL;
+    }
+    else if(raSRD.run_state == DECEL)
+    {
+        raSRD.decel_val++;
+        //判断是否到了该停止的时候
+        if(raSRD.decel_val==0)
+        {
+            timer_pause(TIMER_GROUP_0, TIMER_0);
+            raSRD.run_state = STOP;
+            rest = 0;
+        }
+        else
+        {
+            new_step_delay = raSRD.step_delay - (((2 *raSRD.step_delay) + rest)/(4 * raSRD.decel_val + 1));
+            rest = ((2 * raSRD.step_delay)+rest)%(4 * raSRD.decel_val + 1);
+            raSRD.step_delay = new_step_delay;
+            timer_set_alarm_value(TIMER_GROUP_0, TIMER_0, raSRD.step_delay);
+        }
+    }
+}
+
 static bool IRAM_ATTR timer0_group0_isr_callback(void *args)
 {
     BaseType_t high_task_awoken = pdFALSE;
-    //printf("pulse count: %ld\n", timer_get_counter_value(TIMER_GROUP_0, TIMER_0, &counterValue));
-    if(raMotorRunPara._motorRotateDir == CW)  //顺时针旋转
+    
+    if(raSRD.dir == CW)  //顺时针旋转
         raInterruptCount++;
     else                        //逆时针
         raInterruptCount--;
@@ -60,15 +120,81 @@ static bool IRAM_ATTR timer0_group0_isr_callback(void *args)
     else if(raInterruptCount>=640000)
         raInterruptCount -= 640000;
 
-    if(raInterruptCount % 2 == 0)
+    if(raInterruptCount % 2 == 1)
+    {
         gpio_set_level(RA_STEP, 1);
+    }
     else
+    {
         gpio_set_level(RA_STEP, 0);
-
-    raPulseCount = (raInterruptCount/2)%320000;      //电机位置 一圈  320000pulse
-    
-    timer_get_counter_value(TIMER_GROUP_0, TIMER_0, &counterValue);
+        raTimerRun();
+    }
+    raPulseCount = (raInterruptCount/2);      //电机位置 一圈  320000pulse 
     return high_task_awoken == pdTRUE; 
+}
+
+static void decTimerRun(void)
+{
+    //保存新(下)一个延时周期
+    volatile int new_step_delay = 0;
+    static volatile int rest = 0;
+
+    decSRD.step_count++;
+    //判断电机现在所处状态
+    if(decSRD.run_state == ACCEL)
+    {
+        decSRD.accel_count++;// 加速计数值加1
+        ////计算新(下)一步脉冲周期(时间间隔)
+        new_step_delay = decSRD.step_delay - (((2 *decSRD.step_delay) + rest)/(4 * decSRD.accel_count + 1));
+        // 计算余数，下次计算补上余数，减少误差
+        rest = ((2 * decSRD.step_delay)+rest)%(4 * decSRD.accel_count + 1);
+        
+        if(decSRD.step_count >= decSRD.decel_start)  //大于必须减速的步数
+        {
+            decSRD.step_delay = new_step_delay;
+            rest = 0;
+            decSRD.run_state = DECEL;
+        }
+        else
+        {
+            if(new_step_delay < decSRD.min_delay)   //判断是否
+            {
+                decSRD.step_delay = decSRD.min_delay;
+                decSRD.run_state = RUN;
+            }
+            else
+            {
+                decSRD.step_delay = new_step_delay;
+                decSRD.run_state = ACCEL;
+            }
+        }
+        timer_set_alarm_value(TIMER_GROUP_0, TIMER_1, decSRD.step_delay);
+    }
+    else if(decSRD.run_state == RUN)
+    {
+        //判断是否到了该减速的位置
+        if(decSRD.step_count>=decSRD.decel_start) 
+            decSRD.run_state = DECEL;         
+    }
+    else if(decSRD.run_state == DECEL)
+    {
+        decSRD.decel_val++;
+        //判断是否到了该停止的时候
+        if(decSRD.decel_val==0)
+        {
+            timer_pause(TIMER_GROUP_0, TIMER_1);
+            decSRD.run_state = STOP;
+            rest = 0;
+            return;
+        }
+        else
+        {
+            new_step_delay = decSRD.step_delay - (((2 *decSRD.step_delay) + rest)/(4 * decSRD.decel_val + 1));
+            rest = ((2 * decSRD.step_delay)+rest)%(4 * decSRD.decel_val + 1);
+            decSRD.step_delay = new_step_delay;
+            timer_set_alarm_value(TIMER_GROUP_0, TIMER_1, decSRD.step_delay);
+        }
+    }
 }
 
 //定时器组 0  定时器 1 中断服务函数    定时翻转赤维轴电机STEP引脚电平
@@ -76,24 +202,26 @@ static bool IRAM_ATTR timer1_group0_isr_callback(void *args)
 {
     BaseType_t high_task_awoken = pdFALSE;
     
-    if(decMotorRunPara._motorRotateDir == CW)
+    if(decSRD.dir == CW)  //顺时针旋转
         decInterruptCount++;
-    else
+    else                        //逆时针
         decInterruptCount--;
 
-    if(decInterruptCount<0)      //将区间 限制在 0~(640000-1) 是否等同于 decInterruptCount/640000 负数取余？？
+    if(decInterruptCount<0)      //将区间 限制在 0~(640000-1)
         decInterruptCount += 640000;
     else if(decInterruptCount>=640000)
         decInterruptCount -= 640000;
 
-    if(decInterruptCount % 2 == 0)
+    if(decInterruptCount % 2 == 1)
+    {
         gpio_set_level(DEC_STEP, 1);
+    }
     else
+    {
         gpio_set_level(DEC_STEP, 0);
-
-    decPulseCount = (decInterruptCount/2)%320000;    //电机位置 一圈  320000pulse
-
-    //设置下一个脉冲的计数值
+        decTimerRun();
+    }
+    decPulseCount = (decInterruptCount/2);      //电机位置 一圈  320000pulse 
     return high_task_awoken == pdTRUE; 
 }
 
@@ -102,7 +230,7 @@ void raTimerInit(void)
 {
     timer_config_t config = 
 	{
-        .divider = 4,                           //分频系数  4分频   20M   1ms 20000个计数   TIMER_BASE_CLK 定时器基频 80M
+        .divider = STEPMOTOR_TIM_PRESCALER,                           //分频系数  4分频   20M   1ms 20000个计数   TIMER_BASE_CLK 定时器基频 80M
         .counter_dir = TIMER_COUNT_UP,          //向上计数
         .counter_en = TIMER_PAUSE,              //停止定时器
         .alarm_en = TIMER_ALARM_EN,             //
@@ -121,7 +249,7 @@ void decTimerInit(void)
 {
     timer_config_t config = 
 	{
-        .divider = 4,                           //分频系数  4分频   20M   1ms 20000个计数
+        .divider = STEPMOTOR_TIM_PRESCALER,                           //分频系数  4分频   20M   1ms 20000个计数
         .counter_dir = TIMER_COUNT_UP,          //向上计数
         .counter_en = TIMER_PAUSE,              //停止定时器
         .alarm_en = TIMER_ALARM_EN,             //
@@ -135,193 +263,362 @@ void decTimerInit(void)
     timer_isr_callback_add(TIMER_GROUP_0, TIMER_1, timer1_group0_isr_callback, NULL, 0);
 }
 
-void STEPMOTOR_AxisMoveRel(__IO int32_t step, __IO uint32_t accel, __IO uint32_t decel, __IO uint32_t speed)
-{ 
-    __IO uint16_t tim_count;
-    // 达到最大速度时的步数
-    __IO uint32_t max_s_lim;
-    // 必须要开始减速的步数（如果加速没有达到最大速度）
-    __IO uint32_t accel_lim;
-
-    if(step < 0) // 步数为负数
+//int  step= -200;
+//unsigned int accel=15000;//rad/s
+//unsigned int decel=15000;//rad/s
+//double speed = 125.6636; //0.1rad/s
+//ra轴 梯形加减速相对位置运动
+void raMotorTRPMove(unsigned int accel, unsigned int decel, double speed, int step)  //相对运动
+{
+    //达到最大速度时的步数
+    unsigned int max_s_lim;
+    //必须要开始减速的步数 如果加速没有达到最大速度
+    unsigned int accel_lim;
+    if(step<0)
     {
-        srd.dir = CCW; // 逆时针方向旋转
-        STEPMOTOR_DIR_REVERSAL();
-        step =-step;   // 获取步数绝对值
+        raSRD.dir = CCW;
+        gpio_set_level(RA_DIR, CCW);  //设置方向为逆时针
+        step = -step;
     }
-
+    else if(step>0)
+    {
+        raSRD.dir = CW;
+        gpio_set_level(RA_DIR, CW);   //设置方向为顺时针
+    }
     else
     {
-        srd.dir = CW; // 顺时针方向旋转
-        STEPMOTOR_DIR_FORWARD();
+        return;     
     }
-
-    if(step == 1)    // 步数为1
+    raSRD.step_count = 0;
+    if(step == 1)
     {
-        srd.accel_count = -1;   // 只移动一步
-        srd.run_state = DECEL;  // 减速状态.
-        srd.step_delay = 1000;   // 短延时      
+        raSRD.accel_count = -1;   //只移动一步
+        raSRD.run_state = DECEL;  //减速状态
+        raSRD.step_delay = 10000;  //短延时
     }
-    else if(step != 0)  // 如果目标运动步数不为0
+    else    //如果目标运动步数大于1
     {
-        // 我们的驱动器用户手册有详细的计算及推导过程
-        // 设置最大速度极限, 计算得到min_delay用于定时器的计数器的值。
-        // min_delay = (alpha / tt)/ w
-        srd.min_delay = (int32_t)(A_T_x10/speed);
-
-        // 通过计算第一个(c0) 的步进延时来设定加速度，其中accel单位为0.1rad/sec^2
-        // step_delay = 1/tt * sqrt(2*alpha/accel)
-        // step_delay = ( tfreq*0.676/10 )*10 * sqrt( (2*alpha*100000) / (accel*10) )/100
-
-        srd.step_delay = (int32_t)((T1_FREQ_148 * sqrt(A_SQ / accel))/10);
-        // 计算多少步之后达到最大速度的限制
-        // max_s_lim = speed^2 / (2*alpha*accel)
-        max_s_lim = (uint32_t)(speed*speed/(A_x200*accel/10));
-
-        // 如果达到最大速度小于0.5步，我们将四舍五入为0
-        // 但实际我们必须移动至少一步才能达到想要的速度
+        //最小延时，最大速度的延时，x10
+        raSRD.min_delay = (unsigned int)(A_T_x10/speed);
+        //通过计算第一个(c0)的步进延时来设定家属都，其中accel的单位为0.1rad/sec^2
+        raSRD.step_delay = (unsigned int)((T1_FREQ_148 * sqrt(A_SQ / accel))/10);
+        //计算多少步子厚达到最大速度的限制
+        max_s_lim = (unsigned int)(speed*speed/(A_x200*accel/10));
+        //如果达到最大速度小于0.5步，我们将四舍五入为0
+        //但实际我们必须移动至少一步才能达到想要的速度
         if(max_s_lim == 0)
         {
             max_s_lim = 1;
         }
-
-        // 计算多少步之后我们必须开始减速
-        // n1 = (n1+n2)decel / (accel + decel)
-        accel_lim = (uint32_t)(step*decel/(accel+decel));
-
-        // 我们必须加速至少1步才能才能开始减速.
+        //使用限制条件我们可以计算出减速阶段步数
+        accel_lim = (unsigned int)(step*decel/(accel+decel));
+        //我们必须加速自少一步才能开始减速
         if(accel_lim == 0)
         {
             accel_lim = 1;
         }
-
-        // 使用限制条件我们可以计算出减速阶段步数
+        //使用限制条件我们可以计算出减速阶段步数
         if(accel_lim <= max_s_lim)
         {
-            srd.decel_val = accel_lim - step;
+            raSRD.decel_val = accel_lim - step;
         }
         else
         {
-            srd.decel_val = -(max_s_lim*accel/decel);
+            raSRD.decel_val = -(max_s_lim*accel/decel);
         }
-
-        // 当只剩下一步我们必须减速
-        if(srd.decel_val == 0)
+        //当只剩下一步我们必须减速
+        if(raSRD.decel_val == 0)
         {
-            srd.decel_val = -1;
+            raSRD.decel_val = -1;
         }
-        // 计算开始减速时的步数
-        srd.decel_start = step + srd.decel_val;
-
-        // 如果最大速度很慢，我们就不需要进行加速运动
-        if(srd.step_delay <= srd.min_delay)
+        //计算开始减速是的步数
+        raSRD.decel_start = step + raSRD.decel_val;
+        //如果最大速度很慢，我们就不需要进行加速运动
+        if(raSRD.step_delay <= raSRD.min_delay)
         {
-            srd.step_delay = srd.min_delay;
-            srd.run_state = RUN;
+            raSRD.step_delay = raSRD.min_delay;
+            raSRD.run_state = RUN;
         }
         else
         {
-            srd.run_state = ACCEL;
-        }   
-        // 复位加速度计数值
-        srd.accel_count = 0;
+            raSRD.run_state = ACCEL;
+        }
+        //复位加速度技术值
+        raSRD.accel_count = 0;
     }
-    MotionStatus = 1; // 电机为运动状态
-    tim_count=__HAL_TIM_GET_COUNTER(&htimx_STEPMOTOR);  __HAL_TIM_SET_COMPARE(&htimx_STEPMOTOR,STEPMOTOR_TIM_CHANNEL_x,tim_count+srd.step_delay); // 设置定时器比较值
-    TIM_CCxChannelCmd(STEPMOTOR_TIMx, STEPMOTOR_TIM_CHANNEL_x, TIM_CCx_ENABLE);// 使能定时器通道
-    STEPMOTOR_OUTPUT_ENABLE();
+    //设置起始计数值
+    timer_set_counter_value(TIMER_GROUP_0, TIMER_0, 0);     //先清空计数值
+    timer_set_alarm_value(TIMER_GROUP_0, TIMER_0, raSRD.step_delay);
+    //开始运动
+    timer_start(TIMER_GROUP_0, TIMER_0);
+    //输出信息
+    printf("电机旋转状态%d\n",raSRD.run_state);
+    printf("电机旋转方向%d\n", raSRD.dir);
+    printf("下一个脉冲时间间隔%d\n", raSRD.step_delay);
+    printf("启动减速位置%d\n", raSRD.decel_start);
+    printf("减速阶段步数%d\n", raSRD.decel_val);
+    printf("最小脉冲周期%d\n", raSRD.min_delay);
+    printf("加速阶段计数值%d\n", raSRD.accel_count);
 }
 
-int raMotorTpMove(double minSpeed, double maxSpeed, double acc, double dec, int step)         //ra轴T型位置移动
+void raMotorTRVMove(unsigned int accel, double speed, unsigned char dir)   //速度模式运动
 {
-    unsigned short timeCount;
-    unsigned int maxSpeedPulse; //达到最大速度时的步速
-    unsigned int startDecPulse; //开始减速的步速
+    //达到最大速度时的步数
+    unsigned int max_s_lim;
 
-    if(step < 0)    //步数为负数
+    raSRD.dir = dir;
+    gpio_set_level(RA_DIR, dir);   //设置方向为顺时针
+    //最小延时，最大速度的延时，x10
+    raSRD.min_delay = (unsigned int)(A_T_x10/speed);
+    //通过计算第一个(c0)的步进延时来设定家属都，其中accel的单位为0.1rad/sec^2
+    raSRD.step_delay = (unsigned int)((T1_FREQ_148 * sqrt(A_SQ / accel))/10);
+    //计算多少步子厚达到最大速度的限制
+    max_s_lim = (unsigned int)(speed*speed/(A_x200*accel/10));
+    //如果达到最大速度小于0.5步，我们将四舍五入为0
+    //但实际我们必须移动至少一步才能达到想要的速度
+    if(max_s_lim == 0)
     {
-        raMotorRunPara._motorRotateDir = CCW;
-        gpio_set_level(RA_DIR, 0);
-        step = -step;
+        max_s_lim = 1;
+    }
+    //如果最大速度很慢，我们就不需要进行加速运动
+    if(raSRD.step_delay <= raSRD.min_delay)
+    {
+        raSRD.step_delay = raSRD.min_delay;
+        raSRD.run_state = RUN;
     }
     else
     {
-        raMotorRunPara._motorRotateDir = CW;
-        gpio_set_level(RA_DIR, 1);
+        raSRD.run_state = ACCEL;
     }
+    //复位加速度技术值
+    raSRD.accel_count = 0;
+    raSRD.decel_start = 0xFFFFFFFF;
+    //设置起始计数值
+    timer_set_counter_value(TIMER_GROUP_0, TIMER_0, 0);     //先清空计数值
+    timer_set_alarm_value(TIMER_GROUP_0, TIMER_0, raSRD.step_delay);
+    //开始运动
+    timer_start(TIMER_GROUP_0, TIMER_0);
+}
 
-    if(step == 1)   //如果只有一步，直接减速
+void raMotorStopMove(unsigned int decel)                //减速停止
+{
+    if(raSRD.run_state == DECEL)
+        return;
+
+    //必须要开始减速的步数 如果加速没有达到最大速度
+    unsigned int accel_lim;
+    //使用限制条件我们可以计算出减速阶段步数
+    int step = raSRD.accel_count;
+    accel_lim = (unsigned int)(step*decel/(decel+decel));
+    //我们必须加速自少一步才能开始减速
+    if(accel_lim == 0)
     {
-        raMotorRunPara._motorState = DecState;
+        accel_lim = 1;
     }
-    else if(step != 0)
+    //使用限制条件我们可以计算出减速阶段步数
+    if(accel_lim <= step)
     {
-        //设置最大速度极限，计算的到定时器的计数器的值  4分频 频率为  20M 20000000
-        raMotorRunPara.maxSpeedTimerAlarmValue = (int)(A_T_x10/maxSpeed);
-        raMotorRunPara.startSpeedTimerAlarmValue = (int)((T_FREQ_148*sqrt(A_SQ/acc))/10);
-        //计算多少步之后达到最大速度的限制
-        maxSpeedPulse = (unsigned int)(maxSpeed*maxSpeed/(A_x200*acc/10));
-        if(maxSpeed==0)
-            maxSpeed = 1;
-        //计算多少步之后必须开始减速
-        startDecPulse = (unsigned int)(step*dec/(acc+dec));
-        if(startDecPulse==0)
-            startDecPulse = 1;
+        raSRD.decel_val = accel_lim - step;
+    }
+    else
+    {
+        raSRD.decel_val = -(step*decel/decel);
+    }
+    //当只剩下一步我们必须减速
+    if(raSRD.decel_val == 0)
+    {
+        raSRD.decel_val = -1;
+    }
+    //计算开始减速是的步数
+    raSRD.decel_start = step + raSRD.decel_val;
+    raSRD.decel_start = 0x0;
+}
 
-        if(startDecPulse <= maxSpeedPulse)
-            raMotorRunPara.startDecPulse = maxSpeedPulse - step;
+int getRaMotorState(void)
+{
+    return raSRD.run_state;
+}
+
+int getRaMotorPosition(void)
+{
+    return raPulseCount;
+}
+
+//dec轴 梯形加减速相对位置运动
+void decMotorTRPMove(unsigned int accel, unsigned int decel, double speed, int step)  //相对运动
+{
+    //达到最大速度时的步数
+    unsigned int max_s_lim;
+    //必须要开始减速的步数 如果加速没有达到最大速度
+    unsigned int accel_lim;
+    if(step<0)
+    {
+        decSRD.dir = CCW;
+        gpio_set_level(DEC_DIR, CCW);  //设置方向为逆时针
+        step = -step;
+    }
+    else if(step>0)
+    {
+        decSRD.dir = CW;
+        gpio_set_level(DEC_DIR, CW);   //设置方向为顺时针
+    }
+    else
+    {
+        return;     
+    }
+    decSRD.step_count = 0;
+    if(step == 1)
+    {
+        decSRD.accel_count = -1;   //只移动一步
+        decSRD.run_state = DECEL;  //减速状态
+        decSRD.step_delay = 10000;  //短延时
+    }
+    else    //如果目标运动步数大于1
+    {
+        //最小延时，最大速度的延时，x10
+        decSRD.min_delay = (unsigned int)(A_T_x10/speed);
+        //通过计算第一个(c0)的步进延时来设定家属都，其中accel的单位为0.1rad/sec^2
+        decSRD.step_delay = (unsigned int)((T1_FREQ_148 * sqrt(A_SQ / accel))/10);
+        //计算多少步子厚达到最大速度的限制
+        max_s_lim = (unsigned int)(speed*speed/(A_x200*accel/10));
+        //如果达到最大速度小于0.5步，我们将四舍五入为0
+        //但实际我们必须移动至少一步才能达到想要的速度
+        if(max_s_lim == 0)
+        {
+            max_s_lim = 1;
+        }
+        //使用限制条件我们可以计算出减速阶段步数
+        accel_lim = (unsigned int)(step*decel/(accel+decel));
+        //我们必须加速自少一步才能开始减速
+        if(accel_lim == 0)
+        {
+            accel_lim = 1;
+        }
+        //使用限制条件我们可以计算出减速阶段步数
+        if(accel_lim <= max_s_lim)
+        {
+            decSRD.decel_val = accel_lim - step;
+        }
         else
-            raMotorRunPara.startDecPulse = -(maxSpeedPulse*acc/dec);
-
-        //当只剩下一步必须件数
-        if(raMotorRunPara.startDecPulse == 0)
         {
-            raMotorRunPara.startDecPulse = -1;
+            decSRD.decel_val = -(max_s_lim*accel/decel);
         }
-        //计算开始件数时的不熟
-        raMotorRunPara.startDecPulse = step + raMotorRunPara.startDecPulse;
-
+        //当只剩下一步我们必须减速
+        if(decSRD.decel_val == 0)
+        {
+            decSRD.decel_val = -1;
+        }
+        //计算开始减速是的步数
+        decSRD.decel_start = step + decSRD.decel_val;
         //如果最大速度很慢，我们就不需要进行加速运动
-        if(raMotorRunPara.startDecPulse <= raMotorRunPara.maxSpeedTimerAlarmValue)
+        if(decSRD.step_delay <= decSRD.min_delay)
         {
-            raMotorRunPara.startDecPulse = raMotorRunPara.maxSpeedTimerAlarmValue;
-            raMotorRunPara._motorState = KeepState;
+            decSRD.step_delay = decSRD.min_delay;
+            decSRD.run_state = RUN;
         }
-        else 
+        else
         {
-            raMotorRunPara._motorState = AccState;
+            decSRD.run_state = ACCEL;
         }
+        //复位加速度技术值
+        decSRD.accel_count = 0;
     }
-    uint64_t counterValue;
-    timer_get_counter_value(TIMER_GROUP_0, TIMER_0, &counterValue);
-    timer_set_alarm_value(TIMER_GROUP_0, TIMER_0, counterValue+raMotorRunPara.startSpeedTimerAlarmValue);
-    timer_start(TIMER_GROUP_0, TIMER_GROUP_1);
-    return 0;
+    //设置起始计数值
+    timer_set_counter_value(TIMER_GROUP_0, TIMER_1, 0);     //先清空计数值
+    timer_set_alarm_value(TIMER_GROUP_0, TIMER_1, decSRD.step_delay);
+    //开始运动
+    timer_start(TIMER_GROUP_0, TIMER_1);
+    //输出信息
+    printf("电机旋转状态%d\n",decSRD.run_state);
+    printf("电机旋转方向%d\n", decSRD.dir);
+    printf("下一个脉冲时间间隔%d\n", decSRD.step_delay);
+    printf("启动减速位置%d\n", decSRD.decel_start);
+    printf("减速阶段步数%d\n", decSRD.decel_val);
+    printf("最小脉冲周期%d\n", decSRD.min_delay);
+    printf("加速阶段计数值%d\n", decSRD.accel_count);
 }
 
-int decMotorTpMove(double minVel, double maxVel, double tAcc, double tDec, int dist)        //dec轴T型位置移动
+void decMotorTRVMove(unsigned int accel, double speed, unsigned char dir)   //速度模式运动
 {
-    return 0;
+    //达到最大速度时的步数
+    unsigned int max_s_lim;
+
+    decSRD.dir = dir;
+    gpio_set_level(DEC_DIR, dir);   //设置方向为顺时针
+    //最小延时，最大速度的延时，x10
+    decSRD.min_delay = (unsigned int)(A_T_x10/speed);
+    //通过计算第一个(c0)的步进延时来设定家属都，其中accel的单位为0.1rad/sec^2
+    decSRD.step_delay = (unsigned int)((T1_FREQ_148 * sqrt(A_SQ / accel))/10);
+    //计算多少步子厚达到最大速度的限制
+    max_s_lim = (unsigned int)(speed*speed/(A_x200*accel/10));
+    //如果达到最大速度小于0.5步，我们将四舍五入为0
+    //但实际我们必须移动至少一步才能达到想要的速度
+    if(max_s_lim == 0)
+    {
+        max_s_lim = 1;
+    }
+    //如果最大速度很慢，我们就不需要进行加速运动
+    if(decSRD.step_delay <= decSRD.min_delay)
+    {
+        decSRD.step_delay = decSRD.min_delay;
+        decSRD.run_state = RUN;
+    }
+    else
+    {
+        decSRD.run_state = ACCEL;
+    }
+    //复位加速度技术值
+    decSRD.accel_count = 0;
+    decSRD.decel_start = 0xFFFFFFFF;
+    //设置起始计数值
+    timer_set_counter_value(TIMER_GROUP_0, TIMER_1, 0);     //先清空计数值
+    timer_set_alarm_value(TIMER_GROUP_0, TIMER_1, decSRD.step_delay);
+    //开始运动
+    timer_start(TIMER_GROUP_0, TIMER_1);
 }
 
-int raMotorTvMove(double minVel, double maxVel, double tAcc, motorRotateDir dir)    //ra轴T型速度运动
+void decMotorStopMove(unsigned int decel)                //减速停止
 {
-    return 0;
+    if(decSRD.run_state == DECEL)
+        return;
+
+    //必须要开始减速的步数 如果加速没有达到最大速度
+    unsigned int accel_lim;
+    //使用限制条件我们可以计算出减速阶段步数
+    int step = decSRD.accel_count;
+    accel_lim = (unsigned int)(step*decel/(decel+decel));
+    //我们必须加速自少一步才能开始减速
+    if(accel_lim == 0)
+    {
+        accel_lim = 1;
+    }
+    //使用限制条件我们可以计算出减速阶段步数
+    if(accel_lim <= step)
+    {
+        decSRD.decel_val = accel_lim - step;
+    }
+    else
+    {
+        decSRD.decel_val = -(step*decel/decel);
+    }
+    //当只剩下一步我们必须减速
+    if(decSRD.decel_val == 0)
+    {
+        decSRD.decel_val = -1;
+    }
+    //计算开始减速是的步数
+    decSRD.decel_start = step + decSRD.decel_val;
+    decSRD.decel_start = 0x0;
 }
 
-int decMotorTvMove(double minVel, double maxVel, double tAcc, motorRotateDir dir)   //dec轴T型速度运动
+int getDecMotorState(void)
 {
-    return 0;
+    return decSRD.run_state;
 }
 
-void raMotorStop()     //ra轴停止运动
+int getDecMotorPosition(void)
 {
-
-}
-
-void decMotorStop()    //dec轴停止运动
-{
-
+    return decPulseCount;
 }
 
 void startSyncTarget(void)
@@ -339,34 +636,55 @@ void stopSyncTarget(void)
 //  Az/Alt:DDD*MM'SS.S SDD*MM'SS.S  Az/Alt坐标系
 //  AT/Dec:hh:mm:ss.s SDD*MM'SS.S   时角坐标系
 
-double getCurrentHtSecsValue(void)
+double getCurrentHaSecsValue(void)
 {
     //指向北天极后
     //raPulseCount=0 对应 0h  raPulseCount = 80000 对应 6h
     //raPulseCount=160000 对应 12h raPulseCount = 240000对应 18h
-    double htSecs = raPulseCount * (24.0*3600.0/320000.0);   //得出时角的秒数
+    double haSecs = raPulseCount * (24.0*3600.0/320000.0);   //得出时角的秒数
 
-    return htSecs;
+    return haSecs;
 }
 
-void getCurrentHtValueString(char *str)
+double getCurrentHaRadValue(void)   //得到当前时角 弧度值
+{
+    double haRad = (raPulseCount/320000.0)*2*PI;
+    return haRad;
+}
+
+void getCurrentHaValueString(char *str)
 {
     int hour, min; 
     float sec;
 
-    double htSecs = getCurrentHtSecsValue();
+    double haSecs = getCurrentHaSecsValue();
 
-    hour = (int)htSecs/3600;       //得出小时
-    min = (int)htSecs%3600/60;     //得出分钟
-    sec = htSecs-(hour*3600)-(min*60);     //得出秒
+    hour = (int)haSecs/3600;       //得出小时
+    min = (int)haSecs%3600/60;     //得出分钟
+    sec = haSecs-(hour*3600)-(min*60);     //得出秒
 
     sprintf(str, "%02d:%02d:%02.0f", hour, min, sec);
 }
 
 double getCurrentDecAsecsValue(void)
 {
-    double decAsecs = decPulseCount * (360.0*3600.0/320000); //转换成角度秒
+    double decAsecs = decPulseCount * (360.0*3600.0/320000.0); //转换成角度秒
     return decAsecs;
+}
+
+double getCurrentDecRadValue(void)
+{
+    double decAsecs = getCurrentDecAsecsValue();
+    double decRad;
+    if(decAsecs<=(180*3600.0))
+    {
+        decRad =(-(decAsecs/3600.0) + 90)/180*PI;
+    }
+    else
+    {
+        decRad =((decAsecs/3600.0) - 270)/180*PI;
+    }
+    return decRad;
 }
 
 void getCurrentDecValueString(char *str)
@@ -392,7 +710,7 @@ void getCurrentDecValueString(char *str)
             degree = (int)decAsecs/3600;
             amin = (int)decAsecs%3600/60;
             asec = decAsecs-(degree*3600)-(amin*60);
-            sprintf(str, "%02d*%02d'%02.0f", degree, amin, asec);
+            sprintf(str, "%02d*%02d'%02.0f", degree, amin, fabs(asec));
         }
         else
         {
@@ -400,7 +718,7 @@ void getCurrentDecValueString(char *str)
             degree = (int)decAsecs/3600;
             amin = (int)decAsecs%3600/60;
             asec = decAsecs-(degree*3600)-(amin*60);
-            sprintf(str, "-%02d*%02d'%02.0f", degree, amin, asec);
+            sprintf(str, "-%02d*%02d'%02.0f", degree, amin, fabs(asec));
         }
     }
     else
@@ -414,7 +732,7 @@ void getCurrentDecValueString(char *str)
             degree = (int)decAsecs/3600;
             amin = (int)decAsecs%3600/60;
             asec = decAsecs-(degree*3600)-(amin*60);
-            sprintf(str, "%02d*%02d'%02.0f", degree, amin, asec);
+            sprintf(str, "%02d*%02d'%02.0f", degree, amin, fabs(asec));
         }
         else
         {
@@ -422,14 +740,112 @@ void getCurrentDecValueString(char *str)
             degree = (int)decAsecs/3600;
             amin = (int)decAsecs%3600/60;
             asec = decAsecs-(degree*3600)-(amin*60);
-            sprintf(str, "-%02d*%02d'%02.0f", degree, amin, asec);
+            sprintf(str, "-%02d*%02d'%02.0f", degree, amin, fabs(asec));
         }
     }
 }
 
-//当前的时间 位置  时间角度 换算出当前的赤经值
+//当前点机位置 换算出当前的赤经值
 void getCurrentRaValueString(char *str)         //得到当前的赤经字符串
 {
-    double raSecs = htSec2raSec(getCurrentHtSecsValue());
+    double raSecs = haSec2raSec(getCurrentHaSecsValue());
     raSec2RaStr(raSecs, str);
 }
+
+//得到当前的方位角   azimuth angle
+double getCurrentAzRadValue(void)
+{
+    double sina, cosa;
+    double decRad = getCurrentDecRadValue();
+    double haRad = getCurrentHaRadValue();
+    double latiRad = getCurrentSiteLatitudeRadValue();
+
+    #if 1
+    sina = -cos(decRad) * sin(haRad);
+    cosa = cos(latiRad) * sin(decRad) - cos(decRad) * sin(latiRad) * cos(haRad);
+
+    double azRad;
+    azRad = atan2(sina, cosa);
+    if(azRad < 0)
+        azRad += 2*PI;
+    #elif
+    double x, y, z;
+    x = cos(haRad) * cos(decRad);
+    y = sin(haRad) * cos(decRad);
+    z = sin(decRad);
+    double xhor, yhor, zhor;
+    xhor = x*sin(latiRad) - z*cos(latiRad);
+    yhor = y;
+    zhor = x*cos(latiRad) + z*sin(latiRad);
+
+    double azRad = atan2(yhor, xhor) + PI;
+    #endif
+    return azRad;
+}
+
+//得到当前的高度角  Altitude angle
+double getCurrentAltRadValue(void)
+{
+    double latiRad = getCurrentSiteLatitudeRadValue();
+    double decRad = getCurrentDecRadValue();
+    double haRad = getCurrentHaRadValue();
+
+    #if 1
+    double altRad = asin(sin(latiRad)*sin(decRad)+cos(latiRad)*cos(decRad)*cos(haRad));
+    #elif
+    double x, y, z;
+    x = cos(haRad) * cos(decRad);
+    y = sin(haRad) * cos(decRad);
+    z = sin(decRad);
+    double xhor, yhor, zhor;
+    xhor = x*sin(latiRad) - z*cos(latiRad);
+    yhor = y;
+    zhor = x*cos(latiRad) + z*sin(latiRad);
+    double altRad = asin(zhor);
+    #endif
+
+    return altRad;
+}
+
+char currentAzString[32];
+char currentAltString[32];
+char * getCurrentAzStr(void)
+{
+    double azRad = getCurrentAzRadValue();
+    int degree, amin;
+    double asec;
+    double azAsec = azRad/(2*PI)*360.0*3600.0;  //转换为角秒
+
+    degree = (int)azAsec/3600;
+    amin = (int)azAsec%3600/60;
+    asec = azAsec-(degree*3600)-(amin*60);
+    sprintf(currentAzString, "%03d*%02d'%02.0f", degree, amin, fabs(asec));
+    
+    return currentAzString;
+}
+
+char * getCurrentAltStr(void)
+{
+    double altRad = getCurrentAltRadValue();
+    int degree, amin;
+    double asec;
+    double altAsec = altRad/(2*PI)*360.0*3600.0;  //转换为角秒
+
+    if(altAsec < 0)
+    {
+        altAsec = -altAsec;
+        degree = (int)altAsec/3600;
+        amin = (int)altAsec%3600/60;
+        asec = altAsec-(degree*3600)-(amin*60);
+        sprintf(currentAltString, "-%02d*%02d'%02.0f", degree, amin, fabs(asec));
+    }
+    else
+    {
+        degree = (int)altAsec/3600;
+        amin = (int)altAsec%3600/60;
+        asec = altAsec-(degree*3600)-(amin*60);
+        sprintf(currentAltString, "%02d*%02d'%02.0f", degree, amin, fabs(asec));
+    }
+    return currentAltString;
+}
+

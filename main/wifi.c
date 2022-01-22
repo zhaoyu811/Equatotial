@@ -74,7 +74,7 @@ static void pushCmd(char *str)
         return pushCmd(str);  //插入新的指令
     }
 }
-
+static double speed = 0;
 static void execCmd(void)
 {
     char cmdTmpBuff[32];     //存储取出的指令
@@ -192,69 +192,80 @@ static void execCmd(void)
         {
             //计算 目标天体 是否可以到达
             //????????????????????????????????
+            if(isPossibleToSlowToTarget())
+            {
+                //可以到达，移动到目标
+                raMotorTRPMove(15000, 15000, 125.6636, (getCurrentHaSecsValue()-raSec2HaSec(getTargetCelestialBodyRaValue()))/(24.0*3600.0)*320000.0);
+                decMotorTRPMove(15000, 15000, 125.6636, (getCurrentDecAsecsValue()-getTargetCelestialBodyDecValue())/(360.0*3600.0)*320000.0);
 
-
-            send(connectSocket, "0", strlen("0"), 0);
+                send(connectSocket, "0", strlen("0"), 0);
+            }
+            else
+            {
+                send(connectSocket, "1Object Below Horizon#", strlen("1Object Below Horizon#"), 0);
+            }
         }
         else if(strncmp(cmdTmpBuff, "CM", 2) == 0)
         {
             //追踪目标天体
             //?????????????????????????????????
-            startSyncTarget();
+            raMotorTRVMove(15000, 125.6636/900, CW);
             send(connectSocket, "sync target!#", strlen("sync target!#"), 0);
         }
         else if(strncmp(cmdTmpBuff, "RG", 2)==0)    //设置速度为  Guiding Rate (slowest)    return nothing
         {
-
+            speed = 125.6636/1000;
         }
         else if(strncmp(cmdTmpBuff, "RC", 2)==0)    //设置速度为  Centering rate (2nd slowest)  return nothing
         {
-
+            speed = 125.6636/100;
         }
         else if(strncmp(cmdTmpBuff, "RM", 2)==0)    //设置速度为  Find Rate (2nd Fastest)   return nothing
         {
-
+            speed = 125.6636/10;
         }
         else if(strncmp(cmdTmpBuff, "RS", 2)==0)    //设置速度为  max (fastest)     return nothing
         {
-
+            speed = 125.6636;
         }
         else if(strncmp(cmdTmpBuff, "Ms", 2)==0)    //向南移动  Move Telescope South    return nothing
         {
-            raMotorTvMove(0, 0, 0, CCW);
+            raMotorTRVMove(15000, speed, CW);
         }
         else if(strncmp(cmdTmpBuff, "Qs", 2)==0)    //停止向南移动  return nothing
         {
-            raMotorStop();
+            raMotorStopMove(15000);
         }
         else if(strncmp(cmdTmpBuff, "Mn", 2)==0)    //向北移动  return nothing
         {
-            raMotorTvMove(0, 0, 0, CW);
+            raMotorTRVMove(15000, speed, CCW);
         }
         else if(strncmp(cmdTmpBuff, "Qn", 2)==0)    //停止向北移动  return nothing
         {
-            raMotorStop();
+            raMotorStopMove(15000);
         }
         else if(strncmp(cmdTmpBuff, "Mw", 2)==0)    //向西移动  return nothing
         {
-            decMotorTvMove(0, 0, 0, CCW);
+            decMotorTRVMove(15000, speed, CW);
         }
         else if(strncmp(cmdTmpBuff, "Qw", 2)==0)    //停止向西移动  return nothing
         {
-            decMotorStop();
+            decMotorStopMove(15000);
         }
         else if(strncmp(cmdTmpBuff, "Me", 2)==0)    //向东移动  return nothing
         {
-            decMotorTvMove(0, 0, 0, CW);
+            decMotorTRVMove(15000, speed, CCW);
         }
         else if(strncmp(cmdTmpBuff, "Qe", 2)==0)    //停止向东移动  return nothing
         {
-            decMotorStop();
+            decMotorStopMove(15000);
         }
         else if(strncmp(cmdTmpBuff, "Q", 1) == 0)   //注意Qe Qs Qn Qw
         {
             //停止一切运动
-            stopSyncTarget(); //return nothing
+            raMotorStopMove(15000);
+            decMotorStopMove(15000);
+            //stopSyncTarget(); //return nothing
         }
         else 
         {

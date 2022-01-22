@@ -8,6 +8,8 @@ static char currentSiteLongitudeString[32] = {0};    //当前位置经度 经度
 static char currentSiteLatitudeString[32] = {0};     //当前位置纬度 纬度从北极到南极 +90°到-90°    sDD*MM
 static double currentSiteLongitudeValue = 0;         // 0'' ~ 360*3600'' 角秒
 static double currentSiteLatitudeValue = 0;          // -90*3600'' ~ + 90*3600'' 角秒
+static double currentSiteLongitudeRadValue = 0;      //弧度值
+static double currentSiteLatitudeRadValue = 0;       //弧度值
 //经度转换为角秒 sDDD*MM
 //The current site Longitude. East Longitudes are expressed as negative
 //str 实际东经 为 360度 的补角
@@ -26,27 +28,28 @@ static double latitude2asec(char *str)  //sDD*MM
     else
         return (latitudeDegree * 3600.0) + (latitudeAmin * 60.0);
 }
+static double longitudeAsec2Rad(double Asec)
+{
+    return Asec/(360.0*3600.0)*2*PI;
+}
+
+static double latitudeAsec2Rad(double Asec)
+{
+    return Asec/(360.0*3600.0)*2*PI;
+}
 //设置经度  Set current site’s longitude to DDD*MM an ASCII position string
 void setCurrentSiteLongitudeByString(char * longitudeString)
 {
     strcpy(currentSiteLongitudeString, longitudeString);
     currentSiteLongitudeValue = longitude2asec(currentSiteLongitudeString);
+    currentSiteLongitudeRadValue = longitudeAsec2Rad(currentSiteLongitudeValue);
 }
 //设置纬度
 void setCurrentSiteLatitudeByString(char * latitudeString)
 {
     strcpy(currentSiteLatitudeString, latitudeString);
     currentSiteLatitudeValue = latitude2asec(currentSiteLatitudeString);
-}
-//设置经度
-void setCurrentSiteLongitudeByValue(double longitudeValue)
-{
-
-}
-//设置纬度
-void setCurrentSiteLatitudeByValue(double latitudeValue)
-{
-
+    currentSiteLatitudeRadValue = latitudeAsec2Rad(currentSiteLatitudeValue);
 }
 //获取经度
 char * getCurrentSiteLongitudeString()
@@ -68,6 +71,16 @@ double getCurrentSiteLatitudeValue()
 {
     return currentSiteLatitudeValue;
 }
+double getCurrentSiteLongitudeRadValue()   //获得弧度值
+{
+    return currentSiteLongitudeRadValue;
+}
+
+double getCurrentSiteLatitudeRadValue()   //获得弧度值
+{
+    return currentSiteLatitudeRadValue;
+}
+
 
 static char currentDateString[32];
 static char currentTimeString[32];
@@ -158,6 +171,8 @@ static char targetCelestialBodyRaString[32] = {0};       //目标天体赤经
 static char targetCelestialBodyDecString[32] = {0};      //目标天体赤纬
 static double targetCelestialBodyRaValue = 0;
 static double targetCelestialBodyDecValue = 0;
+static double targetCelestialBodyRaRadValue = 0;
+static double targetCelestialBodyDecRadValue = 0;
 
 //将赤经 秒数表示 转换为字符串 HH:MM:SS
 void raSec2RaStr(double raSecs, char *raStr)
@@ -206,7 +221,7 @@ void decAsec2decStr(double decAsecs, char *decStr)
 double decStr2decAsec(char * decStr) //sDD*MM:SS
 {
     int DD, MM, SS;
-    sscanf(decStr, "%d*%d:%d", &DD, &MM, &SS);
+    sscanf(decStr, "%d:%d:%d", &DD, &MM, &SS);
     if(DD<0)    //如果小于零
         return -(((abs(DD)*3600.0))+(MM*60.0)+SS);
     else
@@ -218,24 +233,28 @@ void setTargetCelestialBodyRaByString(char *str)
 {
     strcpy(targetCelestialBodyRaString, str);
     targetCelestialBodyRaValue = raStr2raSec(targetCelestialBodyRaString);
+    targetCelestialBodyRaRadValue = targetCelestialBodyRaValue / 3600.0 * 15 /180.0 * PI;
 }
 //设置目标赤纬值
 void setTargetCelestialBodyDecByString(char *str)
 {
     strcpy(targetCelestialBodyDecString, str);
     targetCelestialBodyDecValue = decStr2decAsec(targetCelestialBodyDecString);
+    targetCelestialBodyDecRadValue = targetCelestialBodyDecValue / 3600.0 / 180.0 * PI;
 }
 //设置目标赤经值
 void setTargetCelestialBodyRaByValue(double sec)
 {
     targetCelestialBodyRaValue = sec;
     raSec2RaStr(sec, targetCelestialBodyRaString);
+    targetCelestialBodyRaRadValue = targetCelestialBodyRaValue / 3600.0 * 15 /180.0 * PI;
 }
 //设置目标赤纬值
 void setTargetCelestialBodyDecByValue(double asec)
 {
     targetCelestialBodyDecValue = asec;
     decAsec2decStr(asec, targetCelestialBodyDecString);
+    targetCelestialBodyDecRadValue = targetCelestialBodyDecValue / 3600.0 / 180.0 * PI;
 }
 //得到目标赤经字符串
 char * getTargetCelestialBodyRaString(void)
@@ -258,8 +277,18 @@ double getTargetCelestialBodyDecValue(void)
     return targetCelestialBodyDecValue;
 }
 
+double getTargetCelestialBodyRaRadValue(void)
+{
+    return targetCelestialBodyRaRadValue;
+}
+
+double getTargetCelestialBodyDecRadValue(void)
+{
+    return targetCelestialBodyDecRadValue;
+}
+
 //目标赤经转换为时间角度 返回角秒
-double raSec2HtSec(double raSec) 
+double raSec2HaSec(double raSec) 
 {
     //当前日期距离 1月1日 天数
     time_t now;
@@ -275,7 +304,46 @@ double raSec2HtSec(double raSec)
     return htSec;
 }
 
-double htSec2raSec(double htSec)
+int isPossibleToSlowToTarget(void)
+{
+    //计算天体的目标位置，看是否低于地平线
+    double latiRad = getCurrentSiteLatitudeRadValue();
+    double decRad = getTargetCelestialBodyDecRadValue();
+    double haRad = raSec2HaSec(getTargetCelestialBodyRaValue())*15.0/3600.0/180.0*PI;
+
+    printf("%lf  %lf  %lf\n", latiRad, decRad, haRad);
+
+    double altRad = asin(sin(latiRad)*sin(decRad)+cos(latiRad)*cos(decRad)*cos(haRad));
+
+    int degree, amin;
+    double asec;
+    double altAsec = altRad/(2*PI)*360.0*3600.0;  //转换为角秒
+
+    if(altAsec < 0)
+    {
+        altAsec = -altAsec;
+        degree = (int)altAsec/3600;
+        amin = (int)altAsec%3600/60;
+        asec = altAsec-(degree*3600)-(amin*60);
+        printf("target alt:-%02d*%02d'%02.0f\n", degree, amin, fabs(asec));
+        return 0;
+    }
+    else
+    {
+        degree = (int)altAsec/3600;
+        amin = (int)altAsec%3600/60;
+        asec = altAsec-(degree*3600)-(amin*60);
+        printf("target alt:%02d*%02d'%02.0f\n", degree, amin, fabs(asec));
+        return 1;
+    }
+    
+    if(altRad < 0)  //低于地平线
+        return 0;
+    else
+        return 1;
+}
+
+double haSec2raSec(double haSec)
 {
     time_t now;
     struct tm *timeinfo;
@@ -284,7 +352,7 @@ double htSec2raSec(double htSec)
     double seconds = timeinfo->tm_hour*3600+timeinfo->tm_min*60+timeinfo->tm_sec;    //得出当天秒数
     double longitudeAsec = (360.0*3600.0) - longitude2asec(currentSiteLongitudeString);
 
-    double raSec = ((6*3600)+(40*60))+(timeinfo->tm_yday*(3*60+56))+seconds - (((120*3600)-longitudeAsec)/15) - htSec;
+    double raSec = ((6*3600)+(40*60))+(timeinfo->tm_yday*(3*60+56))+seconds - (((120*3600)-longitudeAsec)/15) - haSec;
     if(raSec<0)
         raSec = 24*3600.0 + raSec;
 
