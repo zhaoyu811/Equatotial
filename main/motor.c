@@ -642,13 +642,16 @@ double getCurrentHaSecsValue(void)
     //raPulseCount=0 对应 0h  raPulseCount = 80000 对应 6h
     //raPulseCount=160000 对应 12h raPulseCount = 240000对应 18h
     double haSecs = raPulseCount * (24.0*3600.0/320000.0);   //得出时角的秒数
-
+    if(decPulseCount >= 160000)
+        haSecs += 12*3600;
     return haSecs;
 }
 
 double getCurrentHaRadValue(void)   //得到当前时角 弧度值
 {
     double haRad = (raPulseCount/320000.0)*2*PI;
+    if(decPulseCount >= 160000)
+        haRad += PI;
     return haRad;
 }
 
@@ -659,7 +662,7 @@ void getCurrentHaValueString(char *str)
 
     double haSecs = getCurrentHaSecsValue();
 
-    hour = (int)haSecs/3600;       //得出小时
+    hour = (int)haSecs/3600%24;       //得出小时
     min = (int)haSecs%3600/60;     //得出分钟
     sec = haSecs-(hour*3600)-(min*60);     //得出秒
 

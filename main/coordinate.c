@@ -173,6 +173,10 @@ static double targetCelestialBodyRaValue = 0;
 static double targetCelestialBodyDecValue = 0;
 static double targetCelestialBodyRaRadValue = 0;
 static double targetCelestialBodyDecRadValue = 0;
+static int targetCelestialBodyRaPulseValue1 = 0;        //对应到电机上有两个位置
+static int targetCelestialBodyRaPulseValue2 = 0;        //得到当前目标的 Ha/Dec 坐标系 映射到电机坐标系中， 求出电机坐标系 pulseValue
+static int targetCelestialBodyDecPulseValue1 = 0;
+static int targetCelestialBodyDecPulseValue2 = 0;       //dec [0-160000)对应一个  raPulseValue   [160000-320000)对应一个 raPulseValue
 
 //将赤经 秒数表示 转换为字符串 HH:MM:SS
 void raSec2RaStr(double raSecs, char *raStr)
