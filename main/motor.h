@@ -65,6 +65,8 @@ int getDecMotorPosition(void);
 void startSyncTarget();     //跟踪目标
 void stopSyncTarget();      //停止跟踪目标
 
+int getCurrentRaPulseValue(void);
+int getCurrentDecPulseValue(void);
 void getCurrentHaValueString(char *str);         //得到当前的时角字符串
 void getCurrentRaValueString(char *str);         //得到当前的赤经字符串
 void getCurrentDecValueString(char *str);        //得到当前的赤经字符串

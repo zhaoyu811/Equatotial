@@ -398,6 +398,13 @@ void raMotorTRVMove(unsigned int accel, double speed, unsigned char dir)   //速
     timer_set_alarm_value(TIMER_GROUP_0, TIMER_0, raSRD.step_delay);
     //开始运动
     timer_start(TIMER_GROUP_0, TIMER_0);
+    printf("电机旋转状态%d\n",raSRD.run_state);
+    printf("电机旋转方向%d\n", raSRD.dir);
+    printf("下一个脉冲时间间隔%d\n", raSRD.step_delay);
+    printf("启动减速位置%d\n", raSRD.decel_start);
+    printf("减速阶段步数%d\n", raSRD.decel_val);
+    printf("最小脉冲周期%d\n", raSRD.min_delay);
+    printf("加速阶段计数值%d\n", raSRD.accel_count);
 }
 
 void raMotorStopMove(unsigned int decel)                //减速停止
@@ -635,6 +642,16 @@ void stopSyncTarget(void)
 //  RA/Dec:hh:mm:ss.s SDD*MM'SS.S  RA/Dec坐标系
 //  Az/Alt:DDD*MM'SS.S SDD*MM'SS.S  Az/Alt坐标系
 //  AT/Dec:hh:mm:ss.s SDD*MM'SS.S   时角坐标系
+
+int getCurrentRaPulseValue(void)
+{
+    return raPulseCount;
+}
+
+int getCurrentDecPulseValue(void)
+{
+    return decPulseCount;
+}
 
 double getCurrentHaSecsValue(void)
 {

@@ -191,13 +191,111 @@ static void execCmd(void)
         else if(strncmp(cmdTmpBuff, "MS", 2) == 0)  //指向目标 0 Slew is Possible 1<string># Object Below Horizon w/string message 2<string># Object Below Higher w/string message
         {
             //计算 目标天体 是否可以到达
-            //????????????????????????????????
             if(isPossibleToSlowToTarget())
             {
-                //可以到达，移动到目标
-                raMotorTRPMove(15000, 15000, 125.6636, (getCurrentHaSecsValue()-raSec2HaSec(getTargetCelestialBodyRaValue()))/(24.0*3600.0)*320000.0);
-                decMotorTRPMove(15000, 15000, 125.6636, (getCurrentDecAsecsValue()-getTargetCelestialBodyDecValue())/(360.0*3600.0)*320000.0);
+                //可以到达，更新目标对应的脉冲位置
+                updateTargetCelestialBodyRaPulseValue();
+                updateTargetCelestialBodyDecPulseValue();
 
+                printf("currentRaPulseValue=%d, targetRaPulseValue1=%d, targetRaPulseValue2=%d\n",\
+                        getCurrentRaPulseValue(), getTargetCelestialBodyRaPulseValue1(), getTargetCelestialBodyRaPulseValue2());
+                printf("currentDecPulseValue=%d, targetDecPulseValue1=%d, targetDecPulseValue2=%d\n",\
+                        getCurrentDecPulseValue(), getTargetCelestialBodyDecPulseValue1(), getTargetCelestialBodyDecPulseValue2());
+
+                //得出运动的相对距离 负值 逆时针旋转  正值 顺时针旋转
+                int raPulse1 = 0, decPulse1 = 0, raPulse2, decPulse2;
+                if((getCurrentRaPulseValue()>=0)&&(getCurrentRaPulseValue()<160000))   //当前位置在[0, 160000)
+                {
+                    if((getTargetCelestialBodyRaPulseValue1()>=0)&&(getTargetCelestialBodyRaPulseValue1()<160000))  //目标位置在[0, 160000)
+                    {
+                        raPulse1 = getTargetCelestialBodyRaPulseValue1()-getCurrentRaPulseValue();
+                    }
+                    else    //目标位置在[160000, 320000)
+                    {
+                        raPulse1 = -(320000-getTargetCelestialBodyRaPulseValue1()+getCurrentRaPulseValue());    //逆时针运动
+                    }
+
+                    if((getTargetCelestialBodyRaPulseValue2()>=0)&&(getTargetCelestialBodyRaPulseValue2()<160000))  //目标位置在[0, 160000)
+                    {
+                        raPulse2 = getTargetCelestialBodyRaPulseValue2()-getCurrentRaPulseValue();
+                    }
+                    else    //目标位置在[160000, 320000)
+                    {
+                        raPulse2 = -(320000-getTargetCelestialBodyRaPulseValue2()+getCurrentRaPulseValue());    //逆时针运动
+                    }
+                }
+                else    //当前位置在[160000, 320000)
+                {
+                    if((getTargetCelestialBodyRaPulseValue1()>=0)&&(getTargetCelestialBodyRaPulseValue1()<160000))  //目标位置在[0, 160000)
+                    {
+                        raPulse1 = 320000-getCurrentRaPulseValue()+getTargetCelestialBodyRaPulseValue1();   //顺时针运动
+                    }
+                    else    //目标位置在[160000, 320000)
+                    {
+                        raPulse1 = getTargetCelestialBodyRaPulseValue1()-getCurrentRaPulseValue();
+                    }
+
+                    if((getTargetCelestialBodyRaPulseValue2()>=0)&&(getTargetCelestialBodyRaPulseValue2()<160000))  //目标位置在[0, 160000)
+                    {
+                        raPulse2 = 320000-getCurrentRaPulseValue()+getTargetCelestialBodyRaPulseValue2();   //顺时针运动
+                    }
+                    else    //目标位置在[160000, 320000)
+                    {
+                        raPulse2 = getTargetCelestialBodyRaPulseValue2()-getCurrentRaPulseValue();
+                    }
+                }
+
+                if((getCurrentDecPulseValue()>=0)&&(getCurrentDecPulseValue()<160000))
+                {
+                    if((getTargetCelestialBodyDecPulseValue1()>=0)&&(getTargetCelestialBodyDecPulseValue1()<160000))  //目标位置在[0, 160000)
+                    {
+                        decPulse1 = getTargetCelestialBodyDecPulseValue1()-getCurrentDecPulseValue();
+                    }
+                    else    //目标位置在[160000, 320000)
+                    {
+                        decPulse1 = -(320000-getTargetCelestialBodyDecPulseValue1()+getCurrentDecPulseValue());    //逆时针运动
+                    }
+
+                    if((getTargetCelestialBodyDecPulseValue2()>=0)&&(getTargetCelestialBodyDecPulseValue2()<160000))  //目标位置在[0, 160000)
+                    {
+                        decPulse2 = getTargetCelestialBodyDecPulseValue2()-getCurrentDecPulseValue();
+                    }
+                    else    //目标位置在[160000, 320000)
+                    {
+                        decPulse2 = -(320000-getTargetCelestialBodyDecPulseValue2()+getCurrentDecPulseValue());    //逆时针运动
+                    }
+                }
+                else
+                {
+                    if((getTargetCelestialBodyDecPulseValue1()>=0)&&(getTargetCelestialBodyDecPulseValue1()<160000))  //目标位置在[0, 160000)
+                    {
+                        decPulse1 = 320000-getCurrentDecPulseValue()+getTargetCelestialBodyDecPulseValue1();   //顺时针运动
+                    }
+                    else    //目标位置在[160000, 320000)
+                    {
+                        decPulse1 = getTargetCelestialBodyDecPulseValue1()-getCurrentDecPulseValue();
+                    }
+
+                    if((getTargetCelestialBodyDecPulseValue2()>=0)&&(getTargetCelestialBodyDecPulseValue2()<160000))  //目标位置在[0, 160000)
+                    {
+                        decPulse2 = 320000-getCurrentDecPulseValue()+getTargetCelestialBodyDecPulseValue2();   //顺时针运动
+                    }
+                    else    //目标位置在[160000, 320000)
+                    {
+                        decPulse2 = getTargetCelestialBodyDecPulseValue2()-getCurrentDecPulseValue();
+                    }
+                }
+                //求出最短运动时间  取出两个位置点ra dec 中的最大运动距离 取最小的运动距离
+                if(abs(abs(raPulse1)>abs(decPulse1)?raPulse1:decPulse1)>abs(abs(raPulse2)>abs(decPulse2)?raPulse2:decPulse2))
+                {
+                    raMotorTRPMove(15000, 15000, 125.6636, raPulse2);
+                    decMotorTRPMove(15000, 15000, 125.6636, decPulse2);
+                }
+                else
+                {
+                    raMotorTRPMove(15000, 15000, 125.6636, raPulse1);
+                    decMotorTRPMove(15000, 15000, 125.6636, decPulse1);
+                }
                 send(connectSocket, "0", strlen("0"), 0);
             }
             else
@@ -209,7 +307,7 @@ static void execCmd(void)
         {
             //追踪目标天体
             //?????????????????????????????????
-            raMotorTRVMove(15000, 125.6636/900, CW);
+            raMotorTRVMove(15000, A_T_x10/2692625, CW);
             send(connectSocket, "sync target!#", strlen("sync target!#"), 0);
         }
         else if(strncmp(cmdTmpBuff, "RG", 2)==0)    //设置速度为  Guiding Rate (slowest)    return nothing

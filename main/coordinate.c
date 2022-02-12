@@ -169,14 +169,48 @@ char * getCurrentSiteTimeZone(void)
 
 static char targetCelestialBodyRaString[32] = {0};       //目标天体赤经
 static char targetCelestialBodyDecString[32] = {0};      //目标天体赤纬
-static double targetCelestialBodyRaValue = 0;
-static double targetCelestialBodyDecValue = 0;
-static double targetCelestialBodyRaRadValue = 0;
-static double targetCelestialBodyDecRadValue = 0;
+static double targetCelestialBodyRaValue = 0;           //秒值
+static double targetCelestialBodyDecValue = 0;          //角秒值
+static double targetCelestialBodyRaRadValue = 0;        //弧度值
+static double targetCelestialBodyDecRadValue = 0;       //弧度值
 static int targetCelestialBodyRaPulseValue1 = 0;        //对应到电机上有两个位置
 static int targetCelestialBodyRaPulseValue2 = 0;        //得到当前目标的 Ha/Dec 坐标系 映射到电机坐标系中， 求出电机坐标系 pulseValue
 static int targetCelestialBodyDecPulseValue1 = 0;
 static int targetCelestialBodyDecPulseValue2 = 0;       //dec [0-160000)对应一个  raPulseValue   [160000-320000)对应一个 raPulseValue
+
+int getTargetCelestialBodyRaPulseValue1(void)
+{
+    return targetCelestialBodyRaPulseValue1;
+}
+
+int getTargetCelestialBodyRaPulseValue2(void)
+{
+    return targetCelestialBodyRaPulseValue2;
+}
+
+int getTargetCelestialBodyDecPulseValue1(void)
+{
+    return targetCelestialBodyDecPulseValue1;
+}
+
+int getTargetCelestialBodyDecPulseValue2(void)
+{
+    return targetCelestialBodyDecPulseValue2;
+}
+
+void updateTargetCelestialBodyRaPulseValue(void)   //得到目标天体的RaPulse
+{
+    //得到天体当前的时间角度
+    int haSec = raSec2HaSec(getTargetCelestialBodyRaValue());
+    targetCelestialBodyRaPulseValue1 = haSec * (320000.0/86400.0);      //秒转换为 对应的脉冲位置  1圈对应 320000个脉冲  24*3600秒
+    targetCelestialBodyRaPulseValue2 = (haSec+(12*3600)%86400) * (320000.0/86400.0);
+}
+
+void updateTargetCelestialBodyDecPulseValue(void)  //得到目标天体的DecPulse
+{
+    targetCelestialBodyDecPulseValue1 = (-80000.0/90.0/3600.0)*targetCelestialBodyDecValue + 80000;           //角秒转换为 对应的脉冲位置  1圈对应 320000个脉冲   360*3600角秒
+    targetCelestialBodyDecPulseValue2 = (80000.0/90.0/3600.0)*targetCelestialBodyDecValue + 240000;
+}
 
 //将赤经 秒数表示 转换为字符串 HH:MM:SS
 void raSec2RaStr(double raSecs, char *raStr)

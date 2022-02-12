@@ -33,6 +33,13 @@ char * getTargetCelestialBodyDecString(void);
 double getTargetCelestialBodyRaValue(void);
 double getTargetCelestialBodyDecValue(void);
 int isPossibleToSlowToTarget(void);
+int getTargetCelestialBodyRaPulseValue1(void);
+int getTargetCelestialBodyRaPulseValue2(void);
+int getTargetCelestialBodyDecPulseValue1(void);
+int getTargetCelestialBodyDecPulseValue2(void);
+void updateTargetCelestialBodyRaPulseValue(void);   //得到目标天体的RaPulse
+void updateTargetCelestialBodyDecPulseValue(void);  //得到目标天体的DecPulse
+
 
 //  实现坐标系间的转换
 //  Ra/Dec:HH:MM:SS.S sDD*MM'SS.S  RA/Dec坐标系
