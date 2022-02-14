@@ -78,6 +78,7 @@ static void raDecUpdatePositon(void *arg)
 		sprintf(decPositionString, "Dec:%s", decString);
 		sprintf(raPostiontString, "Ra:%s", raString);
 		sprintf(raPulsePosition, "pulse:%7d", getRaMotorPosition());
+		sprintf(ipString, "%6d %6d", getCurrentRaPulseValue(), getCurrentDecPulseValue());
 		vTaskDelay(100/portTICK_RATE_MS);
 	}
 }

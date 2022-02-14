@@ -37,10 +37,10 @@ void raDecAxisGpiosInit(void)
 
 volatile speedRampData raSRD, decSRD;
 
-static volatile int raPulseCount = 0;        //ra  赤经轴的位置  0-(320000-1)
-static volatile int decPulseCount = 0;       //dec 赤纬轴的位置  0~(320000-1)
-static volatile int raInterruptCount = 0;    //ra  赤经轴的定时器中断计数，用于 STEP 引脚翻转电平  0~(640000-1)
-static volatile int decInterruptCount = 0;   //dec 赤纬轴的定时器中断计数，用于 STEP 引脚翻转电平  0~(640000-1)
+static volatile int raPulseCount = 80000;    //ra  赤经轴的位置  [0, 320000)
+static volatile int decPulseCount = 0;       //dec 赤纬轴的位置  [0, 320000)
+static volatile int raInterruptCount = 160000;    //ra  赤经轴的定时器中断计数，用于 STEP 引脚翻转电平  [0, 640000)
+static volatile int decInterruptCount = 0;   //dec 赤纬轴的定时器中断计数，用于 STEP 引脚翻转电平  [0, 640000)
 //定时器组 0  定时器 0 中断服务函数    定时翻转赤经轴电机STEP引脚电平
 
 static void raTimerRun(void)
@@ -661,7 +661,7 @@ double getCurrentHaSecsValue(void)
     double haSecs = raPulseCount * (24.0*3600.0/320000.0);   //得出时角的秒数
     if(decPulseCount >= 160000)
         haSecs += 12*3600;
-    return haSecs;
+    return (int)(haSecs)%86400;
 }
 
 double getCurrentHaRadValue(void)   //得到当前时角 弧度值

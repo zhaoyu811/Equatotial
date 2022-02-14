@@ -74,7 +74,7 @@ static void pushCmd(char *str)
         return pushCmd(str);  //插入新的指令
     }
 }
-static double speed = 0;
+static double speed = 125.6636;
 static void execCmd(void)
 {
     char cmdTmpBuff[32];     //存储取出的指令
@@ -312,15 +312,15 @@ static void execCmd(void)
         }
         else if(strncmp(cmdTmpBuff, "RG", 2)==0)    //设置速度为  Guiding Rate (slowest)    return nothing
         {
-            speed = 125.6636/1000;
+            speed = 125.6636/1000.0;
         }
         else if(strncmp(cmdTmpBuff, "RC", 2)==0)    //设置速度为  Centering rate (2nd slowest)  return nothing
         {
-            speed = 125.6636/100;
+            speed = 125.6636/100.0;
         }
         else if(strncmp(cmdTmpBuff, "RM", 2)==0)    //设置速度为  Find Rate (2nd Fastest)   return nothing
         {
-            speed = 125.6636/10;
+            speed = 125.6636/10.0;
         }
         else if(strncmp(cmdTmpBuff, "RS", 2)==0)    //设置速度为  max (fastest)     return nothing
         {
